@@ -46,8 +46,8 @@ DETAIL_TTL_SECONDS = _safe_int_env("DETAIL_TTL_SECONDS", 43200)
 DETAIL_PENDING_TIMEOUT_SECONDS = _safe_int_env("DETAIL_PENDING_TIMEOUT_SECONDS", 900)
 
 DYNAMODB = boto3.resource("dynamodb")
-WORKER_LAMBDA_ARN = os.getenv("WORKER_LAMBDA_ARN", "")
-LAMBDA_CLIENT = boto3.client("lambda") if WORKER_LAMBDA_ARN else None
+WORKER_LAMBDA_ENV_KEY = "WORKER_LAMBDA_ARN"
+LAMBDA_CLIENT: Optional[Any] = None
 
 SOURCE_CATALOG: Dict[str, Dict[str, Any]] = {
     "nhk-news": {
@@ -409,9 +409,32 @@ def _load_cluster_by_id(cluster_id: str) -> Optional[Dict[str, Any]]:
     return cluster
 
 
-def _start_detail_generation(cluster: Dict[str, Any], raw_item: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
-    if not LAMBDA_CLIENT or not WORKER_LAMBDA_ARN:
-        LOGGER.error("Worker Lambda ARN is not configured")
+def _get_worker_lambda_client() -> Tuple[Optional[str], Optional[Any]]:
+    """Return the worker Lambda ARN and cached boto3 client."""
+    global LAMBDA_CLIENT  # pylint: disable=global-statement
+
+    worker_lambda_arn = (os.getenv(WORKER_LAMBDA_ENV_KEY) or "").strip()
+    if not worker_lambda_arn:
+        return None, None
+
+    if LAMBDA_CLIENT is None:
+        try:
+            LAMBDA_CLIENT = boto3.client("lambda")
+        except Exception as exc:  # pylint: disable=broad-except
+            LOGGER.error("Failed to create Lambda client for worker: %s", exc)
+            return None, None
+
+    return worker_lambda_arn, LAMBDA_CLIENT
+
+
+def _start_detail_generation(
+    cluster: Dict[str, Any],
+    raw_item: Dict[str, Any],
+    *,
+    worker_lambda_arn: str,
+    lambda_client: Any,
+) -> Tuple[bool, Optional[str]]:
+    if not worker_lambda_arn or not lambda_client:
         raise RuntimeError("Worker Lambda ARN is not configured")
 
     source_id = _normalise_id(raw_item.get("pk"), "SOURCE#")
@@ -472,8 +495,8 @@ def _start_detail_generation(cluster: Dict[str, Any], raw_item: Dict[str, Any]) 
     }
 
     try:
-        response = LAMBDA_CLIENT.invoke(
-            FunctionName=WORKER_LAMBDA_ARN,
+        response = lambda_client.invoke(
+            FunctionName=worker_lambda_arn,
             InvocationType="Event",
             Payload=json.dumps(execution_input, ensure_ascii=False).encode("utf-8"),
         )
@@ -577,12 +600,19 @@ def _handle_detail_request(cluster_id: str) -> Dict[str, Any]:
                 },
             )
 
-    if not WORKER_LAMBDA_ARN:
+    worker_lambda_arn, lambda_client = _get_worker_lambda_client()
+    if not worker_lambda_arn or not lambda_client:
+        LOGGER.error("Detail generation pipeline is not configured (missing worker Lambda)")
         return _response(500, {"message": "Detail generation pipeline is not configured"})
 
     had_existing_summary = bool(summary_long)
     try:
-        started, invocation_request_id = _start_detail_generation(cluster, record)
+        started, invocation_request_id = _start_detail_generation(
+            cluster,
+            record,
+            worker_lambda_arn=worker_lambda_arn,
+            lambda_client=lambda_client,
+        )
     except Exception as exc:  # pylint: disable=broad-except
         LOGGER.exception("Failed to start detail generation for cluster %s: %s", cluster_id, exc)
         return _response(500, {"message": "Failed to start detail generation"})
