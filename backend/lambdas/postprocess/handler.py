@@ -269,7 +269,10 @@ def put_summary(payload: Dict[str, Any]) -> None:
     headline_translated = _translate_headline(payload["item"]["title"])
     request_context = payload.get("request_context") or {}
     reason = (request_context.get("reason") or "").lower()
-    is_detail_invocation = reason in {"detail", "on_demand_summary", "manual_detail"}
+    requested_at = _coerce_int(request_context.get("requested_at"))
+    has_detail_flag = bool(payload.get("generate_detailed_summary"))
+    is_detail_reason = reason in {"detail", "on_demand_summary", "manual_detail"}
+    is_detail_invocation = has_detail_flag or (is_detail_reason and requested_at is not None)
     now = int(time.time())
 
     existing_item: Dict[str, Any] = {}
@@ -342,9 +345,8 @@ def put_summary(payload: Dict[str, Any]) -> None:
         else:
             item["detail_status"] = "partial"
 
-    requested_at = request_context.get("requested_at")
-    if requested_at:
-        item["detail_requested_at"] = int(requested_at)
+    if requested_at is not None:
+        item["detail_requested_at"] = requested_at
 
     table.put_item(Item=_sanitize_for_dynamodb(item))
 

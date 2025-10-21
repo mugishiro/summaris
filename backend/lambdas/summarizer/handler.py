@@ -13,7 +13,7 @@ import os
 import re
 import time
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import boto3
 from botocore.config import Config
@@ -627,11 +627,28 @@ def parse_response(raw: Dict[str, Any]) -> Dict[str, Any]:
     return parse_bedrock_response(raw)
 
 
+def _coerce_requested_at(value: Any) -> Optional[int]:
+    try:
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return int(value)
+        if isinstance(value, str) and value.strip():
+            return int(value.strip())
+    except (TypeError, ValueError):
+        return None
+    return None
+
+
 def _should_generate_detailed(event: Dict[str, Any]) -> bool:
     if event.get("generate_detailed_summary"):
         return True
-    reason = (event.get("request_context") or {}).get("reason")
-    return reason in {"detail", "on_demand_summary", "manual_detail"}
+    request_context = event.get("request_context") or {}
+    if not isinstance(request_context, dict):
+        return False
+    reason = (request_context.get("reason") or "").strip().lower()
+    if reason not in {"detail", "on_demand_summary", "manual_detail"}:
+        return False
+    requested_at = _coerce_requested_at(request_context.get("requested_at"))
+    return requested_at is not None
 
 
 def _generate_lightweight_summary(event: Dict[str, Any]) -> Dict[str, Any]:

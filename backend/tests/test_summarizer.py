@@ -57,6 +57,37 @@ def test_parse_cloudflare_response_extracts_json_payload():
     assert result["diff_points"] == ["差分"]
 
 
+def test_should_generate_detailed_requires_requested_at():
+    event = {
+        "article_body": "本文",
+        "request_context": {
+            "reason": "detail",
+        },
+    }
+
+    assert summarizer._should_generate_detailed(event) is False  # pylint: disable=protected-access
+
+
+def test_should_generate_detailed_accepts_flag_or_timestamp():
+    with_flag = {
+        "article_body": "本文",
+        "generate_detailed_summary": True,
+        "request_context": {
+            "reason": "ingest",
+        },
+    }
+    with_timestamp = {
+        "article_body": "本文",
+        "request_context": {
+            "reason": "manual_detail",
+            "requested_at": "1712345678",
+        },
+    }
+
+    assert summarizer._should_generate_detailed(with_flag) is True  # pylint: disable=protected-access
+    assert summarizer._should_generate_detailed(with_timestamp) is True  # pylint: disable=protected-access
+
+
 def test_call_bedrock_retries_on_throttling(monkeypatch: pytest.MonkeyPatch):
     class DummyClient:
         def __init__(self):
