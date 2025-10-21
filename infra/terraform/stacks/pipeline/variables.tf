@@ -331,6 +331,12 @@ variable "frontend_revalidate_secret" {
   default     = ""
 }
 
+variable "frontend_repository" {
+  description = "Git repository URL connected to Amplify"
+  type        = string
+  default     = ""
+}
+
 variable "frontend_additional_environment_variables" {
   description = "Additional environment variables to inject into the Amplify frontend app"
   type        = map(string)

@@ -850,6 +850,7 @@ resource "aws_amplify_app" "frontend" {
   platform = "WEB_COMPUTE"
 
   iam_service_role_arn = aws_iam_role.amplify_service[0].arn
+  repository           = trimspace(var.frontend_repository) != "" ? var.frontend_repository : null
   build_spec           = <<-EOT
     version: 1
     applications:
@@ -892,7 +893,7 @@ resource "aws_amplify_branch" "frontend" {
   branch_name = var.frontend_branch_name
   stage       = var.frontend_stage
 
-  enable_auto_build = false
+  enable_auto_build = true
   framework         = "Next.js - SSR"
 
   tags = merge(var.default_tags, {

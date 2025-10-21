@@ -269,6 +269,7 @@ def put_summary(payload: Dict[str, Any]) -> None:
     headline_translated = _translate_headline(payload["item"]["title"])
     request_context = payload.get("request_context") or {}
     reason = (request_context.get("reason") or "").lower()
+    is_detail_invocation = reason in {"detail", "on_demand_summary", "manual_detail"}
     now = int(time.time())
 
     existing_item: Dict[str, Any] = {}
@@ -316,7 +317,7 @@ def put_summary(payload: Dict[str, Any]) -> None:
 
     summaries_payload = payload.get("summaries") or {}
     summary_long_value = (summaries_payload.get("summary_long") or "").strip()
-    detail_ready = summary_long_value != ""
+    detail_ready = is_detail_invocation and summary_long_value != ""
     if detail_ready:
         item["detail_status"] = "ready"
         item["detail_ready_at"] = now
