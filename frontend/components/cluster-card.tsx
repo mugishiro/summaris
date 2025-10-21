@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { ClusterSummary } from '../lib/types';
 import { SourceCredits } from './source-credits';
@@ -19,7 +19,16 @@ function formatRelative(dateIso: string): string {
 }
 
 export function ClusterCard({ cluster }: { cluster: ClusterSummary }) {
-  const relative = useMemo(() => formatRelative(cluster.updatedAt), [cluster.updatedAt]);
+  const [relative, setRelative] = useState(() => formatRelative(cluster.updatedAt));
+
+  useEffect(() => {
+    const update = () => setRelative(formatRelative(cluster.updatedAt));
+    update();
+    const intervalId = window.setInterval(update, 60_000);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [cluster.updatedAt]);
   const summary = cluster.summaryLong?.trim();
   return (
     <article className="flex flex-col gap-4 rounded-xl border border-slate-800 bg-slate-900/40 p-5 shadow-sm shadow-slate-950/40 transition hover:border-sky-500/40">
