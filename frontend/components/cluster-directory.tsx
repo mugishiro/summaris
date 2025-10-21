@@ -754,7 +754,6 @@ const renderClusterList = useCallback(
       const isReadyStatus = detailStatus === 'ready' || detailStatus === 'stale';
       const hasSummaryContent = summary.length > 0;
       const hasSummary = hasSummaryContent && isReadyStatus;
-      const isSummaryMissingAfterReady = isReadyStatus && !hasSummaryContent;
       const isReady = hasSummary;
       const isError = detailStatus === 'failed' || errorClusterId === cluster.id;
       const isGenerating = loadingId === cluster.id || detailStatus === 'pending';
@@ -766,7 +765,6 @@ const renderClusterList = useCallback(
         isReady,
         isError,
         isGenerating,
-        isSummaryMissingAfterReady,
       };
     },
     [errorClusterId, loadingId]
@@ -887,36 +885,29 @@ const renderClusterList = useCallback(
                         </span>
                       </button>
                   </div>
-                  {activeClusterDetailState.isError ? (
-                    <p className="text-sm text-rose-300">
-                      要約の生成に失敗しました。時間をおいて再試行してください。
-                    </p>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      {activeClusterDetailState.detailStatus === 'partial' && (
+                  <div className="flex flex-col gap-2">
+                    {activeClusterDetailState.detailStatus === 'partial' && (
+                      <p className="text-sm text-slate-400">
+                        要約はまだ生成されていません。上のボタンから生成できます。
+                      </p>
+                    )}
+                    {activeClusterDetailState.isError && (
+                      <p className="text-sm text-rose-300">
+                        要約の生成に失敗しました。時間をおいて再試行してください。
+                      </p>
+                    )}
+                    {activeClusterDetailState.detailStatus === 'stale' &&
+                      !activeClusterDetailState.isGenerating && (
                         <p className="text-sm text-slate-400">
-                          要約はまだ生成されていません。上のボタンから生成できます。
+                          要約を再生成できます。上のボタンをクリックしてください。
                         </p>
                       )}
-                      {activeClusterDetailState.isSummaryMissingAfterReady &&
-                        !activeClusterDetailState.isGenerating && (
-                          <p className="text-sm text-rose-300">
-                            要約を生成できませんでした。もう一度「要約を生成」を押してください。
-                          </p>
-                        )}
-                      {activeClusterDetailState.detailStatus === 'stale' &&
-                        !activeClusterDetailState.isGenerating && (
-                          <p className="text-sm text-slate-400">
-                            要約を再生成できます。上のボタンをクリックしてください。
-                          </p>
-                        )}
-                      {activeClusterDetailState.hasSummary && (
-                        <p className="break-words leading-relaxed text-slate-200 whitespace-pre-wrap">
-                          {activeClusterDetailState.summary}
-                        </p>
-                      )}
-                    </div>
-                  )}
+                    {activeClusterDetailState.hasSummary && (
+                      <p className="whitespace-pre-wrap break-words leading-relaxed text-slate-200">
+                        {activeClusterDetailState.summary}
+                      </p>
+                    )}
+                  </div>
                 </>
               )}
               <SourceCredits
