@@ -1,0 +1,46 @@
+# General
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+venv/
+.venv/
+
+# Node / Frontend
+node_modules/
+*.tsbuildinfo
+.next/
+out/
+coverage/
+dist/
+build/
+
+# Terraform / IaC
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.*
+
+# Documentation (not needed in remote repo)
+docs/
+
+# AWS credentials or overrides (do not commit real values)
+*.tfvars
+*.tfvars.json
+.env
+.env.*
+
+# Editor
+.idea/
+.vscode/

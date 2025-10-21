@@ -1,0 +1,11 @@
+{
+  "source": {
+    "id": "bbc-world",
+    "name": "BBC World News"
+  },
+  "item": {
+    "id": "bbc-20251010-001",
+    "title": "How Trump secured a Gaza breakthrough which eluded Biden",
+    "link": "https://www.bbc.com/news/articles/cj3yke64vp6o"
+  }
+}

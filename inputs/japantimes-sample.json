@@ -1,0 +1,11 @@
+{
+  "source": {
+    "id": "japan-times",
+    "name": "The Japan Times"
+  },
+  "item": {
+    "id": "jt-sample-001",
+    "title": "Japan Times placeholder article",
+    "link": "https://raw.githubusercontent.com/kubernetes/website/main/content/en/examples/controllers/nginx-deployment.yaml"
+  }
+}

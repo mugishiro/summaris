@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  AWS_REGION: ap-northeast-1
+
+jobs:
+  lint-and-test-backend:
+    name: Backend Lint & PyTest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          if [ -f requirements-dev.txt ]; then
+            pip install -r requirements-dev.txt
+          else
+            echo "requirements-dev.txt not found; skipping install (TODO)."
+          fi
+      - name: Run lint & tests
+        run: |
+          echo "TODO: ruff check ."
+          echo "TODO: black --check ."
+          echo "TODO: pytest"
+
+  lint-and-test-frontend:
+    name: Frontend Lint & Jest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+      - name: Install dependencies
+        run: |
+          if [ -f package.json ]; then
+            npm ci
+          else
+            echo "package.json not found; skipping install (TODO)."
+          fi
+      - name: Run lint & tests
+        run: |
+          echo "TODO: npm run lint"
+          echo "TODO: npm test -- --watch=false"
+
+  terraform-plan:
+    name: Terraform Format & Plan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.5
+      - name: Terraform fmt check
+        run: |
+          if ls *.tf >/dev/null 2>&1; then
+            terraform fmt -check
+          else
+            echo "Terraform files not found; skipping fmt (TODO)."
+          fi
+      - name: Terraform init
+        env:
+          TF_BACKEND_BUCKET: ${{ secrets.TF_BACKEND_BUCKET }}
+          TF_BACKEND_TABLE: ${{ secrets.TF_BACKEND_DYNAMODB_TABLE }}
+        run: |
+          if ls *.tf >/dev/null 2>&1; then
+            if [ -z "$TF_BACKEND_BUCKET" ] || [ -z "$TF_BACKEND_TABLE" ]; then
+              echo "TODO: configure TF_BACKEND_BUCKET / TF_BACKEND_DYNAMODB_TABLE secrets."
+              exit 0
+            fi
+            terraform init \
+              -backend-config="bucket=${TF_BACKEND_BUCKET}" \
+              -backend-config="dynamodb_table=${TF_BACKEND_TABLE}" \
+              -backend-config="region=${AWS_REGION}" \
+              -backend-config="key=environments/dev/terraform.tfstate"
+          else
+            echo "Terraform files not found; skipping init (TODO)."
+          fi
+      - name: Terraform validate
+        run: |
+          if ls *.tf >/dev/null 2>&1; then
+            terraform validate
+          else
+            echo "Terraform files not found; skipping validate (TODO)."
+          fi
+      - name: Terraform plan
+        run: |
+          if ls *.tf >/dev/null 2>&1; then
+            terraform plan -out=tfplan
+          else
+            echo "Terraform files not found; skipping plan (TODO)."
+          fi
+      - name: Upload tfplan
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: infra/terraform/tfplan
