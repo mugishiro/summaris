@@ -18,8 +18,23 @@ function formatRelative(dateIso: string): string {
   return `${days}日前`;
 }
 
+function formatAbsolute(dateIso: string): string {
+  const date = new Date(dateIso);
+  if (Number.isNaN(date.getTime())) {
+    return dateIso;
+  }
+  return date.toLocaleString('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
+
 export function ClusterCard({ cluster }: { cluster: ClusterSummary }) {
-  const [relative, setRelative] = useState(() => formatRelative(cluster.updatedAt));
+  const [relative, setRelative] = useState<string | null>(null);
 
   useEffect(() => {
     const update = () => setRelative(formatRelative(cluster.updatedAt));
@@ -42,7 +57,7 @@ export function ClusterCard({ cluster }: { cluster: ClusterSummary }) {
         {summary && summary.length > 0 ? summary : '要約はまだ生成されていません。'}
       </p>
       <div className="flex flex-col gap-2 text-sm text-slate-400">
-        <p className="text-xs">更新: {relative}</p>
+        <p className="text-xs">更新: {relative ?? formatAbsolute(cluster.updatedAt)}</p>
       <SourceCredits sources={cluster.sources} primaryHeadline={cluster.headline} />
       </div>
     </article>
