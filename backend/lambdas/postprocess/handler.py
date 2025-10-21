@@ -291,12 +291,21 @@ def put_summary(payload: Dict[str, Any]) -> None:
 
     existing_created_at = _coerce_int(existing_item.get("created_at"))
 
+    summaries_payload = payload.get("summaries") or {}
+    summaries_for_store: Dict[str, Any] = dict(summaries_payload)
+
+    summary_long_value = (summaries_for_store.get("summary_long") or "").strip()
+    if not is_detail_invocation:
+        summary_long_value = ""
+        summaries_for_store.pop("summary_long", None)
+        summaries_for_store.pop("diff_points", None)
+
     item = {
         "pk": f"SOURCE#{payload['source']['id']}",
         "sk": f"ITEM#{payload['item']['id']}",
         "title": truncated_title,
         "link": processed_link or payload["item"]["link"],
-        "summaries": payload["summaries"],
+        "summaries": summaries_for_store,
         "metrics": payload.get("metrics", {}),
     }
     item_created_at = existing_created_at if existing_created_at else now
@@ -315,8 +324,6 @@ def put_summary(payload: Dict[str, Any]) -> None:
         if _contains_japanese(summary_brief):
             item["headline_translated"] = _truncate_title(summary_brief, 90)
 
-    summaries_payload = payload.get("summaries") or {}
-    summary_long_value = (summaries_payload.get("summary_long") or "").strip()
     detail_ready = is_detail_invocation and summary_long_value != ""
     if detail_ready:
         item["detail_status"] = "ready"

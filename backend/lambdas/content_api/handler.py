@@ -300,6 +300,9 @@ def _marshall_item(raw_item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if is_ready:
         resolved_summary_long = _extract_japanese_lines(summary_long_ready)
         resolved_diff_points = diff_points
+    else:
+        resolved_summary_long = ""
+        resolved_diff_points = []
 
     return {
         "id": item_id,
