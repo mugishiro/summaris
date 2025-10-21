@@ -313,8 +313,10 @@ function normaliseClusterSummary(cluster: ClusterSummary): ClusterSummary {
     }
     const lines = trimmed.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
     const japaneseLines = lines.filter((line) => JP_TEXT_RE.test(line));
-    const candidate = japaneseLines.length > 0 ? japaneseLines.join('\n') : trimmed;
-    return JP_TEXT_RE.test(candidate) ? candidate : undefined;
+    if (japaneseLines.length > 0) {
+      return japaneseLines.join('\n');
+    }
+    return trimmed;
   };
 
   const cleanedStoredLong = firstNonEmpty(
@@ -339,6 +341,13 @@ function normaliseClusterSummary(cluster: ClusterSummary): ClusterSummary {
       ) ?? ''
     : '';
 
+  const fallbackFailure =
+    resolvedSummaryLong.includes('要約を生成できませんでした') ||
+    resolvedSummaryLong.includes('要約は生成されていません');
+
+  const effectiveDetailStatus = fallbackFailure ? 'failed' : detailStatus;
+  const effectiveSummary = fallbackFailure ? '' : resolvedSummaryLong;
+
   const diffPoints =
     payload?.diffPoints && payload.diffPoints.length > 0
       ? payload.diffPoints
@@ -346,8 +355,8 @@ function normaliseClusterSummary(cluster: ClusterSummary): ClusterSummary {
 
   return {
     ...cluster,
-    detailStatus,
-    summaryLong: resolvedSummaryLong,
+    detailStatus: effectiveDetailStatus,
+    summaryLong: effectiveSummary,
     diffPoints,
   };
 }
