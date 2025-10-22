@@ -357,14 +357,6 @@ data "aws_iam_policy_document" "lambda_inline" {
     ]
   }
 
-  statement {
-    sid    = "ComprehendDetectLanguage"
-    effect = "Allow"
-    actions = [
-      "comprehend:DetectDominantLanguage"
-    ]
-    resources = ["*"]
-  }
 
   statement {
     sid    = "InvokePipelineFunctions"
