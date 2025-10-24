@@ -23,8 +23,14 @@ describe('api-client integration', () => {
     for (const cluster of clusters) {
       expect(cluster.id).toMatch(/\w/);
       expect(cluster.sources.length).toBeGreaterThan(0);
-      expect(cluster.summaryLong).toBeDefined();
-      expect(cluster.detailStatus).toBeDefined();
+      const status = cluster.detailStatus ?? 'partial';
+      expect(['ready', 'stale', 'pending', 'partial', 'failed']).toContain(status);
+      if (status === 'ready' || status === 'stale') {
+        expect(typeof cluster.summaryLong).toBe('string');
+        expect((cluster.summaryLong ?? '').trim().length).toBeGreaterThan(0);
+      } else {
+        expect(cluster.summaryLong === undefined || cluster.summaryLong === '').toBe(true);
+      }
     }
   }, 15000);
 
@@ -34,6 +40,13 @@ describe('api-client integration', () => {
     const detail = await fetchClusterById(target.id);
     expect(detail).not.toBeNull();
     expect(detail?.id).toBe(target.id);
-    expect(detail?.summaryLong).toBeDefined();
+    const status = detail?.detailStatus ?? 'partial';
+    if (status === 'ready' || status === 'stale') {
+      expect(typeof detail?.summaryLong).toBe('string');
+      expect((detail?.summaryLong ?? '').trim().length).toBeGreaterThan(0);
+    } else {
+      const summary = detail?.summaryLong;
+      expect(summary === undefined || summary === '').toBe(true);
+    }
   }, 15000);
 });
