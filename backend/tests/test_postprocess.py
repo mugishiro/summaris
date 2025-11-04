@@ -37,6 +37,7 @@ def _patch_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(postprocess, "SUMMARY_TTL_SECONDS", 0, raising=False)
     monkeypatch.setattr(postprocess, "DETAIL_TTL_SECONDS", 0, raising=False)
     monkeypatch.setattr(postprocess, "_translate_headline", lambda title: None, raising=False)
+    monkeypatch.setattr(postprocess, "_translate_text_to_japanese", lambda text: None, raising=False)
 
 
 def _build_payload(**overrides: Any) -> Dict[str, Any]:
@@ -90,3 +91,28 @@ def test_put_summary_stores_detail_when_flag_and_timestamp_present() -> None:
     assert stored["detail_status"] == "ready"
     assert stored["summaries"]["summary_long"] == "長い要約のテキスト"
     assert stored["detail_requested_at"] == 1712345678
+
+
+def test_put_summary_translates_non_japanese_summary(monkeypatch: pytest.MonkeyPatch) -> None:
+    payload = _build_payload(
+        summaries={
+            "summary_long": "This is an English summary.",
+            "diff_points": ["Point A", "Point B"],
+        },
+        request_context={"reason": "detail", "requested_at": "1712345678"},
+        generate_detailed_summary=True,
+    )
+
+    translated_text = "これは翻訳された要約です。"
+    monkeypatch.setattr(
+        postprocess,
+        "_translate_text_to_japanese",
+        lambda text: translated_text,
+        raising=False,
+    )
+
+    postprocess.put_summary(payload)
+
+    stored = postprocess.dynamodb.table.items[("SOURCE#source-1", "ITEM#item-1")]
+    assert stored["summaries"]["summary_long"] == translated_text
+    assert payload["summaries"]["summary_long"] == translated_text

@@ -516,10 +516,10 @@ resource "aws_lambda_function" "postprocess" {
       SUMMARY_TABLE_NAME                   = module.summary_table.name
       RAW_BUCKET_NAME                      = aws_s3_bucket.raw_archive.bucket
       ENABLE_TITLE_TRANSLATION             = "true"
+      ENABLE_SUMMARY_TRANSLATION           = "true"
       TRANSLATE_REGION                     = var.aws_region
       DETAIL_TTL_SECONDS                   = tostring(var.detail_ttl_seconds)
       SUMMARY_TTL_SECONDS                  = tostring(var.summary_ttl_seconds)
-      TRANSLATE_PROVIDER                   = "cloudflare"
       CLOUDFLARE_ACCOUNT_ID                = var.cloudflare_account_id
       CLOUDFLARE_TRANSLATE_MODEL_ID        = var.cloudflare_translate_model_id
       CLOUDFLARE_TRANSLATE_TIMEOUT_SECONDS = tostring(var.cloudflare_translate_timeout_seconds)

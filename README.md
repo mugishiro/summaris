@@ -30,8 +30,9 @@
 
 ## Cloudflare Workers AI 設定概要
 - 要約 Lambda は `SUMMARIZER_PROVIDER=cloudflare`（既定値）で Cloudflare Workers AI を呼び出し、`CLOUDFLARE_ACCOUNT_ID` と Secrets Manager 上のトークン（`CLOUDFLARE_API_TOKEN_SECRET_NAME`）を設定すれば無料枠で運用できる。失敗時は自動的に Bedrock にフォールバック。
-- 見出し翻訳は `TRANSLATE_PROVIDER=cloudflare`（既定値）で `@cf/meta/m2m100-1.2b` を使用し、同じシークレットを参照して Workers AI の翻訳モデルを呼び出す。必要に応じて `CLOUDFLARE_TRANSLATE_MODEL_ID` や `CLOUDFLARE_TRANSLATE_TIMEOUT_SECONDS` を調整できる。
-- Cloudflare を未設定でも既存の AWS Translate / Bedrock 設定があれば従来通り動作する。
+- 見出し翻訳は Cloudflare Workers AI (`ENABLE_TITLE_TRANSLATION=true`) で `@cf/meta/m2m100-1.2b` を使用し、同じシークレットを参照して翻訳モデルを呼び出す。必要に応じて `CLOUDFLARE_TRANSLATE_MODEL_ID` や `CLOUDFLARE_TRANSLATE_TIMEOUT_SECONDS` を調整できる。
+- 要約本文が英語で返ってきた場合でも `ENABLE_SUMMARY_TRANSLATION=true` を設定しておくと Cloudflare Workers AI で日本語化を試行し、成功時は DynamoDB へ保存する要約を差し替える。
+- Cloudflare を未設定の場合は翻訳フォールバックが無効になり、そのままの要約が保存される点に注意する。
 
 ## ライセンス
 このプロジェクトは個人学習・ポートフォリオ用途のためライセンスを設定していません。商用利用を希望する場合は必ず各 RSS 配信元と AWS の利用規約をご確認ください。

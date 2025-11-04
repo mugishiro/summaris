@@ -29,10 +29,10 @@ LOGGER.setLevel(logging.INFO)
 TABLE_NAME = os.getenv("SUMMARY_TABLE_NAME", "")
 RAW_BUCKET = os.getenv("RAW_BUCKET_NAME")
 ENABLE_TITLE_TRANSLATION = os.getenv("ENABLE_TITLE_TRANSLATION", "true").lower() == "true"
+ENABLE_SUMMARY_TRANSLATION = os.getenv("ENABLE_SUMMARY_TRANSLATION", "true").lower() == "true"
 TRANSLATE_REGION = os.getenv("TRANSLATE_REGION") or os.getenv("AWS_REGION")
 DETAIL_TTL_SECONDS = int(os.getenv("DETAIL_TTL_SECONDS", "43200"))
 SUMMARY_TTL_SECONDS = int(os.getenv("SUMMARY_TTL_SECONDS", "172800"))
-TRANSLATE_PROVIDER = os.getenv("TRANSLATE_PROVIDER", "cloudflare").lower()
 CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
 CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "")
 CLOUDFLARE_API_TOKEN_SECRET_NAME = os.getenv("CLOUDFLARE_API_TOKEN_SECRET_NAME", "")
@@ -43,26 +43,9 @@ CLOUDFLARE_TRANSLATE_SOURCE_LANG = os.getenv("CLOUDFLARE_TRANSLATE_SOURCE_LANG",
 dynamodb = boto3.resource("dynamodb")
 s3_client = boto3.client("s3")
 secrets_manager = boto3.client("secretsmanager", region_name=TRANSLATE_REGION or os.getenv("AWS_REGION"))
-_aws_translate_client: Any | None = None
-_aws_translate_client_initialised = False
 _cloudflare_api_token_cache: str | None = None
 
 _JP_CHAR_PATTERN = re.compile(r"[\u3040-\u30ff\u4e00-\u9faf]")
-
-
-def _get_aws_translate_client() -> Any | None:
-    global _aws_translate_client, _aws_translate_client_initialised
-    if not ENABLE_TITLE_TRANSLATION:
-        return None
-    if _aws_translate_client_initialised:
-        return _aws_translate_client
-    try:
-        _aws_translate_client = boto3.client("translate", region_name=TRANSLATE_REGION)
-    except (ClientError, BotoCoreError) as exc:
-        LOGGER.warning("Failed to initialise AWS Translate client: %s", exc)
-        _aws_translate_client = None
-    _aws_translate_client_initialised = True
-    return _aws_translate_client
 
 
 def _resolve_cloudflare_api_token() -> str | None:
@@ -180,26 +163,6 @@ def _translate_with_cloudflare(text: str) -> str | None:
     return None
 
 
-def _translate_with_aws(text: str) -> str | None:
-    client = _get_aws_translate_client()
-    if client is None:
-        return None
-    try:
-        response = client.translate_text(
-            Text=text,
-            SourceLanguageCode="auto",
-            TargetLanguageCode="ja",
-        )
-    except (ClientError, BotoCoreError) as exc:
-        LOGGER.warning("AWS Translate request failed: %s", exc)
-        return None
-
-    translated = response.get("TranslatedText")
-    if translated and translated.strip() and translated.strip() != text.strip():
-        return translated.strip()
-    return None
-
-
 def _contains_japanese(text: str) -> bool:
     return bool(_JP_CHAR_PATTERN.search(text))
 
@@ -212,21 +175,29 @@ def _translate_headline(title: str | None) -> str | None:
     if _contains_japanese(title):
         return title
 
-    providers: tuple[str, ...]
-    if TRANSLATE_PROVIDER == "aws":
-        providers = ("aws", "cloudflare")
-    else:
-        providers = ("cloudflare", "aws")
+    translated = _translate_with_cloudflare(title)
+    if translated and translated.strip() and translated.strip() != title.strip():
+        return translated.strip()
+    return None
 
-    for provider in providers:
-        translated: str | None = None
-        if provider == "cloudflare":
-            translated = _translate_with_cloudflare(title)
-        elif provider == "aws":
-            translated = _translate_with_aws(title)
 
-        if translated and translated.strip() and translated.strip() != title.strip():
-            return translated.strip()
+def _translate_text_to_japanese(text: str | None) -> str | None:
+    if not ENABLE_SUMMARY_TRANSLATION:
+        return None
+    if not text:
+        return None
+
+    original = text.strip()
+    if not original:
+        return None
+    if _contains_japanese(original):
+        return None
+
+    translated = _translate_with_cloudflare(original)
+    if translated:
+        cleaned = translated.strip()
+        if cleaned and cleaned != original and _contains_japanese(cleaned):
+            return cleaned
     return None
 
 
@@ -294,7 +265,11 @@ def put_summary(payload: Dict[str, Any]) -> None:
 
     existing_created_at = _coerce_int(existing_item.get("created_at"))
 
-    summaries_payload = payload.get("summaries") or {}
+    summaries_payload = dict(payload.get("summaries") or {})
+    translated_summary = _translate_text_to_japanese(summaries_payload.get("summary_long"))
+    if translated_summary:
+        summaries_payload["summary_long"] = translated_summary
+    payload["summaries"] = summaries_payload
     summaries_for_store: Dict[str, Any] = dict(summaries_payload)
 
     summary_long_value = (summaries_for_store.get("summary_long") or "").strip()

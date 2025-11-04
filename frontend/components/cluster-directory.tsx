@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ClusterSummary } from '../lib/types';
 import { SourceCredits } from './source-credits';
@@ -26,7 +26,6 @@ const VIEW_OPTIONS: ViewOption[] = [
 ];
 
 const DETAIL_POLL_INTERVAL_MS = 1500;
-const DETAIL_POLL_MAX_ATTEMPTS = 20;
 
 function containsJapanese(text: string): boolean {
   return /[\u3040-\u30ff\u4e00-\u9faf]/.test(text);
@@ -85,6 +84,22 @@ function getRegistrationTimestamp(cluster: ClusterSummary): number {
     return publishedAt;
   }
   return toTimestamp(cluster.updatedAt);
+}
+
+function detailStatusPriority(status: ClusterSummary['detailStatus'] | undefined): number {
+  switch (status) {
+    case 'ready':
+      return 4;
+    case 'stale':
+      return 3;
+    case 'failed':
+      return 2;
+    case 'pending':
+      return 1;
+    case 'partial':
+    default:
+      return 0;
+  }
 }
 
 const JSON_FENCE_RE = /```(?:json)?\s*({[\s\S]*?})\s*```/i;
@@ -372,14 +387,45 @@ export function ClusterDirectory({ clusters }: Props) {
   );
   const [viewMode, setViewMode] = useState<ViewMode>('today');
   const [activeClusterId, setActiveClusterId] = useState<string | null>(null);
-  const [detailCache, setDetailCache] = useState<Record<string, ClusterSummary>>({});
-  const [loadingId, setLoadingId] = useState<string | null>(null);
-  const [errorClusterId, setErrorClusterId] = useState<string | null>(null);
+  const [clusterDetails, setClusterDetails] = useState<Record<string, ClusterSummary>>({});
+  const clusterDetailsRef = useRef<Record<string, ClusterSummary>>(clusterDetails);
+  const pollersRef = useRef<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    clusterDetailsRef.current = clusterDetails;
+  }, [clusterDetails]);
 
   const baseClusterMap = useMemo(() => {
     const map = new Map<string, ClusterSummary>();
     normalisedClusters.forEach((cluster) => map.set(cluster.id, cluster));
     return map;
+  }, [normalisedClusters]);
+
+  useEffect(() => {
+    setClusterDetails((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      normalisedClusters.forEach((cluster) => {
+        const existing = next[cluster.id];
+        if (!existing) {
+          next[cluster.id] = cluster;
+          changed = true;
+          return;
+        }
+        const existingPriority = detailStatusPriority(existing.detailStatus);
+        const incomingPriority = detailStatusPriority(cluster.detailStatus);
+        const existingUpdatedAt = toTimestamp(existing.updatedAt);
+        const incomingUpdatedAt = toTimestamp(cluster.updatedAt);
+        if (
+          incomingPriority > existingPriority ||
+          incomingUpdatedAt > existingUpdatedAt
+        ) {
+          next[cluster.id] = cluster;
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
   }, [normalisedClusters]);
 
   const latestClusters = useMemo(() => {
@@ -427,28 +473,111 @@ export function ClusterDirectory({ clusters }: Props) {
   const todayClustersBySource = useMemo<SourceGroup[]>(() => groupClustersBySource(todayClusters), [todayClusters]);
   const yesterdayClustersBySource = useMemo<SourceGroup[]>(() => groupClustersBySource(yesterdayClusters), [yesterdayClusters]);
 
+  const stopPolling = useCallback((clusterId: string) => {
+    const timeoutId = pollersRef.current.get(clusterId);
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId);
+      pollersRef.current.delete(clusterId);
+    }
+  }, []);
+
+  const startPolling = useCallback(
+    (clusterId: string) => {
+      if (pollersRef.current.has(clusterId)) {
+        return;
+      }
+
+      const poll = async () => {
+        try {
+          const response = await fetch(`/api/cluster/${clusterId}/detail`, {
+            method: 'GET',
+            cache: 'no-store',
+          });
+
+          if (response.status === 404) {
+            stopPolling(clusterId);
+            return;
+          }
+
+          if (response.ok) {
+            const textBody = await response.text();
+            if (textBody) {
+              try {
+                const payload = JSON.parse(textBody) as {
+                  cluster?: ClusterSummary | null;
+                  data?: ClusterSummary | null;
+                };
+                const candidate = payload?.cluster ?? payload?.data ?? null;
+                if (candidate) {
+                  const normalised = normaliseClusterSummary(candidate);
+                  setClusterDetails((prev) => ({
+                    ...prev,
+                    [clusterId]: normalised,
+                  }));
+                  const status = (normalised.detailStatus ?? 'partial') as ClusterSummary['detailStatus'];
+                  if (status === 'ready' || status === 'stale' || status === 'failed') {
+                    stopPolling(clusterId);
+                    return;
+                  }
+                }
+              } catch (error) {
+                console.error('Failed to parse cluster detail payload', error);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Failed to poll cluster detail', error);
+        }
+
+        if (!pollersRef.current.has(clusterId)) {
+          return;
+        }
+
+        const timeoutId = window.setTimeout(poll, DETAIL_POLL_INTERVAL_MS);
+        pollersRef.current.set(clusterId, timeoutId);
+      };
+
+      const timeoutId = window.setTimeout(poll, 0);
+      pollersRef.current.set(clusterId, timeoutId);
+    },
+    [setClusterDetails, stopPolling]
+  );
+
+  useEffect(() => {
+    const pollers = pollersRef.current;
+    return () => {
+      pollers.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      pollers.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    normalisedClusters.forEach((cluster) => {
+      const resolved = clusterDetailsRef.current[cluster.id] ?? cluster;
+      const status = (resolved.detailStatus ?? 'partial') as ClusterSummary['detailStatus'];
+      if (status === 'pending') {
+        startPolling(cluster.id);
+      }
+    });
+  }, [normalisedClusters, startPolling]);
+
   const activeCluster = activeClusterId
-    ? detailCache[activeClusterId] ?? baseClusterMap.get(activeClusterId) ?? null
+    ? clusterDetails[activeClusterId] ?? baseClusterMap.get(activeClusterId) ?? null
     : null;
 
   const ensureDetailSummary = useCallback(
     async (cluster: ClusterSummary) => {
-      const normalisedCluster = normaliseClusterSummary(cluster);
-      const cached = detailCache[cluster.id];
-      const previousSummary = (cached?.summaryLong ?? normalisedCluster.summaryLong ?? '').trim();
-      const previousStatus = (cached?.detailStatus ?? normalisedCluster.detailStatus ?? 'partial') as ClusterSummary['detailStatus'];
-
-      if (loadingId === cluster.id) {
+      const baseCluster =
+        clusterDetailsRef.current[cluster.id] ?? normaliseClusterSummary(cluster);
+      const currentStatus = (baseCluster.detailStatus ?? 'partial') as ClusterSummary['detailStatus'];
+      if (pollersRef.current.has(cluster.id) || currentStatus === 'pending') {
         return;
       }
 
-      setLoadingId(cluster.id);
-      setErrorClusterId(null);
-
-      setDetailCache((prev) => ({
+      setClusterDetails((prev) => ({
         ...prev,
         [cluster.id]: normaliseClusterSummary({
-          ...(prev[cluster.id] ?? normalisedCluster),
+          ...baseCluster,
           detailStatus: 'pending',
           summaryLong: '',
         }),
@@ -464,182 +593,46 @@ export function ClusterDirectory({ clusters }: Props) {
           throw new Error(`Failed to initiate summary generation (${ensureResponse.status})`);
         }
 
-        let attempts = 0;
-        let detailCluster: ClusterSummary | null = null;
-        let failedCluster: ClusterSummary | null = null;
-
-        while (attempts < DETAIL_POLL_MAX_ATTEMPTS) {
-          const detailResponse = await fetch(`/api/cluster/${cluster.id}/detail`, {
-            method: 'GET',
-            cache: 'no-store',
-          });
-
-          if (detailResponse.status === 404) {
-            break;
-          }
-
-          if (detailResponse.ok) {
-            const payload = (await detailResponse.json()) as unknown;
-
-            const toDetailStatus = (
-              value: unknown
-            ): ClusterSummary['detailStatus'] | undefined => {
-              if (typeof value !== 'string') {
-                return undefined;
-              }
-              const lowered = value.toLowerCase();
-              switch (lowered) {
-                case 'ready':
-                case 'stale':
-                case 'pending':
-                case 'failed':
-                case 'partial':
-                  return lowered as ClusterSummary['detailStatus'];
-                default:
-                  return undefined;
-              }
+        const rawText = await ensureResponse.text();
+        if (rawText) {
+          try {
+            const parsed = JSON.parse(rawText) as {
+              cluster?: ClusterSummary | null;
+              data?: ClusterSummary | null;
             };
-
-            let payloadStatus: ClusterSummary['detailStatus'] | undefined;
-            let clusterPayload: ClusterSummary | null = null;
-
-            if (payload && typeof payload === 'object') {
-              const record = payload as Record<string, unknown>;
-              payloadStatus =
-                toDetailStatus(record.detailStatus) ??
-                toDetailStatus(record.status);
-
-              if (record.cluster && typeof record.cluster === 'object') {
-                clusterPayload = record.cluster as ClusterSummary;
-              } else if (record.data && typeof record.data === 'object') {
-                clusterPayload = record.data as ClusterSummary;
-              } else if ('id' in record && typeof record.id === 'string') {
-                clusterPayload = payload as ClusterSummary;
+            const immediate = parsed?.cluster ?? parsed?.data ?? null;
+            if (immediate) {
+              const normalised = normaliseClusterSummary(immediate);
+              setClusterDetails((prev) => ({
+                ...prev,
+                [cluster.id]: normalised,
+              }));
+              const status = (normalised.detailStatus ?? 'partial') as ClusterSummary['detailStatus'];
+              if (status === 'ready' || status === 'stale' || status === 'failed') {
+                stopPolling(cluster.id);
+                return;
               }
             }
-
-            if (
-              payloadStatus === 'failed' ||
-              clusterPayload?.detailStatus === 'failed'
-            ) {
-              if (attempts === 0) {
-                attempts += 1;
-                await new Promise((resolve) => setTimeout(resolve, DETAIL_POLL_INTERVAL_MS));
-                continue;
-              }
-              failedCluster = clusterPayload
-                ? { ...clusterPayload, detailStatus: 'failed' }
-                : {
-                    ...(cached ?? normalisedCluster),
-                    detailStatus: 'failed',
-                  };
-              break;
-            }
-
-            if (clusterPayload) {
-              const derivedStatus =
-                toDetailStatus(clusterPayload.detailStatus) ?? payloadStatus ?? null;
-              const normalisedPayload = normaliseClusterSummary({
-                ...clusterPayload,
-                detailStatus: derivedStatus ?? clusterPayload.detailStatus,
-              });
-
-              const isReadyState =
-                derivedStatus === 'ready' || derivedStatus === 'stale';
-              const readySummary = normalisedPayload.summaryLong?.trim() ?? '';
-              let candidateDetailCluster: ClusterSummary | null = null;
-
-              setDetailCache((prev) => {
-                const previous = prev[cluster.id] ?? normalisedCluster;
-                const merged: ClusterSummary = {
-                  ...previous,
-                  ...normalisedPayload,
-                  detailStatus: derivedStatus ?? previous.detailStatus,
-                };
-
-                if (isReadyState) {
-                  const preferredSummary =
-                    readySummary ||
-                    (normalisedPayload.summaryLong ?? '').trim() ||
-                    (previous.summaryLong ?? '').trim();
-                  merged.summaryLong = preferredSummary;
-                  candidateDetailCluster = merged;
-                } else {
-                  merged.summaryLong = previous.summaryLong;
-                }
-
-                return {
-                  ...prev,
-                  [cluster.id]: merged,
-                };
-              });
-
-              setErrorClusterId(null);
-
-              if (isReadyState) {
-                const preferredSummary =
-                  readySummary || (normalisedPayload.summaryLong ?? '').trim();
-                const summaryUnchanged = preferredSummary === previousSummary;
-                const previouslyReady = previousStatus === 'ready' || previousStatus === 'stale';
-                if (previouslyReady && summaryUnchanged && attempts < DETAIL_POLL_MAX_ATTEMPTS - 1) {
-                  attempts += 1;
-                  await new Promise((resolve) => setTimeout(resolve, DETAIL_POLL_INTERVAL_MS));
-                  continue;
-                }
-                detailCluster = candidateDetailCluster ?? normalisedPayload;
-                break;
-              }
-            }
+          } catch {
+            // ignore JSON parse errors; polling will update the state
           }
-
-          attempts += 1;
-          if (attempts >= DETAIL_POLL_MAX_ATTEMPTS) {
-            break;
-          }
-          await new Promise((resolve) => setTimeout(resolve, DETAIL_POLL_INTERVAL_MS));
         }
 
-        if (failedCluster) {
-          setDetailCache((prev) => ({
-            ...prev,
-            [cluster.id]: normaliseClusterSummary({
-              ...failedCluster,
-              summaryLong:
-                (failedCluster.summaryLong ?? '').trim() ||
-                (prev[cluster.id]?.summaryLong ?? normalisedCluster.summaryLong),
-            }),
-          }));
-          setErrorClusterId(cluster.id);
-          return;
-        }
-
-        if (!detailCluster) {
-          console.warn(
-            `Detailed summary for ${cluster.id} is still pending after ${DETAIL_POLL_MAX_ATTEMPTS} attempts.`
-          );
-          return;
-        }
-
-        setDetailCache((prev) => ({
-          ...prev,
-          [cluster.id]: normaliseClusterSummary(detailCluster as ClusterSummary),
-        }));
-        setErrorClusterId(null);
+        startPolling(cluster.id);
       } catch (error) {
-        console.error('Failed to load detailed summary', error);
-        setDetailCache((prev) => ({
+        console.error('Failed to initiate summary generation', error);
+        stopPolling(cluster.id);
+        setClusterDetails((prev) => ({
           ...prev,
           [cluster.id]: normaliseClusterSummary({
-            ...(prev[cluster.id] ?? normalisedCluster),
+            ...baseCluster,
             detailStatus: 'failed',
+            summaryLong: baseCluster.summaryLong,
           }),
         }));
-        setErrorClusterId(cluster.id);
-      } finally {
-        setLoadingId(null);
       }
     },
-    [detailCache, loadingId]
+    [startPolling, stopPolling]
   );
 
   const handleOpenCluster = useCallback(
@@ -660,10 +653,14 @@ const renderClusterList = useCallback(
             <li className="px-4 py-6 text-sm text-slate-400">{emptyMessage}</li>
           )}
           {clusterList.map((cluster) => {
-            const displayTitle = deriveDisplayTitle(cluster);
-            const primarySource = cluster.sources[0];
+            const resolvedCluster = clusterDetails[cluster.id] ?? cluster;
+            const displayTitle = deriveDisplayTitle(resolvedCluster);
+            const primarySource = resolvedCluster.sources[0];
             const siteName = primarySource?.name || '不明';
-            const registeredIso = cluster.createdAt ?? cluster.detailRequestedAt ?? cluster.updatedAt;
+            const registeredIso =
+              resolvedCluster.createdAt ??
+              resolvedCluster.detailRequestedAt ??
+              resolvedCluster.updatedAt;
             return (
               <li key={cluster.id}>
                 <button
@@ -684,7 +681,7 @@ const renderClusterList = useCallback(
         </ul>
       </section>
     ),
-    [handleOpenCluster]
+    [clusterDetails, handleOpenCluster]
   );
 
   const renderSourceGroups = useCallback(
@@ -717,8 +714,12 @@ const renderClusterList = useCallback(
             </header>
             <ul className="max-h-[50vh] overflow-y-auto divide-y divide-slate-800">
               {grouped.map((cluster) => {
-                const displayTitle = deriveDisplayTitle(cluster);
-                const registeredIso = cluster.createdAt ?? cluster.detailRequestedAt ?? cluster.updatedAt;
+                const resolvedCluster = clusterDetails[cluster.id] ?? cluster;
+                const displayTitle = deriveDisplayTitle(resolvedCluster);
+                const registeredIso =
+                  resolvedCluster.createdAt ??
+                  resolvedCluster.detailRequestedAt ??
+                  resolvedCluster.updatedAt;
                 return (
                   <li key={`${id}-${cluster.id}`}>
                     <button
@@ -744,30 +745,29 @@ const renderClusterList = useCallback(
         )}
       </section>
     ),
-    [handleOpenCluster]
+    [clusterDetails, handleOpenCluster]
   );
 
   const getDetailState = useCallback(
     (cluster: ClusterSummary) => {
-      const summary = (cluster.summaryLong ?? '').trim();
-      const detailStatus = (cluster.detailStatus ?? 'partial') as ClusterSummary['detailStatus'];
+      const resolved = clusterDetails[cluster.id] ?? cluster;
+      const summary = (resolved.summaryLong ?? '').trim();
+      const detailStatus = (resolved.detailStatus ?? 'partial') as ClusterSummary['detailStatus'];
       const isReadyStatus = detailStatus === 'ready' || detailStatus === 'stale';
-      const hasSummaryContent = summary.length > 0;
-      const hasSummary = hasSummaryContent && isReadyStatus;
-      const isReady = hasSummary;
-      const isError = detailStatus === 'failed' || errorClusterId === cluster.id;
-      const isGenerating = loadingId === cluster.id || detailStatus === 'pending';
+      const hasSummary = summary.length > 0 && isReadyStatus;
+      const isError = detailStatus === 'failed';
+      const isGenerating = pollersRef.current.has(cluster.id) || detailStatus === 'pending';
 
       return {
         summary,
         detailStatus,
         hasSummary,
-        isReady,
+        isReady: hasSummary,
         isError,
         isGenerating,
       };
     },
-    [errorClusterId, loadingId]
+    [clusterDetails]
   );
 
   const activeClusterDetailState = activeCluster
