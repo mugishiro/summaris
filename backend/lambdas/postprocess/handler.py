@@ -39,6 +39,7 @@ CLOUDFLARE_API_TOKEN_SECRET_NAME = os.getenv("CLOUDFLARE_API_TOKEN_SECRET_NAME",
 CLOUDFLARE_TRANSLATE_MODEL_ID = os.getenv("CLOUDFLARE_TRANSLATE_MODEL_ID", "@cf/meta/m2m100-1.2b")
 CLOUDFLARE_TRANSLATE_TIMEOUT_SECONDS = float(os.getenv("CLOUDFLARE_TRANSLATE_TIMEOUT_SECONDS", "20"))
 CLOUDFLARE_TRANSLATE_SOURCE_LANG = os.getenv("CLOUDFLARE_TRANSLATE_SOURCE_LANG", "auto")
+SUMMARY_FALLBACK_MESSAGE = "本文から要約を生成できませんでした。"
 
 dynamodb = boto3.resource("dynamodb")
 s3_client = boto3.client("s3")
@@ -167,6 +168,34 @@ def _contains_japanese(text: str) -> bool:
     return bool(_JP_CHAR_PATTERN.search(text))
 
 
+def _extract_japanese_text(value: str) -> str:
+    """
+    Keep only Japanese-containing segments and drop any leading non-Japanese characters.
+    If no Japanese is found, return an empty string so callers can decide how to fallback.
+    """
+    if not value:
+        return ""
+
+    segments: list[str] = []
+    for raw_line in value.splitlines():
+        stripped = raw_line.strip()
+        if not stripped:
+            continue
+        match = _JP_CHAR_PATTERN.search(stripped)
+        if not match:
+            continue
+        cleaned = stripped[match.start() :].strip()
+        if cleaned:
+            segments.append(cleaned)
+    if segments:
+        return "\n".join(segments).strip()
+
+    match = _JP_CHAR_PATTERN.search(value)
+    if match:
+        return value[match.start() :].strip()
+    return ""
+
+
 def _translate_headline(title: str | None) -> str | None:
     if not ENABLE_TITLE_TRANSLATION:
         return None
@@ -176,8 +205,13 @@ def _translate_headline(title: str | None) -> str | None:
         return title
 
     translated = _translate_with_cloudflare(title)
-    if translated and translated.strip() and translated.strip() != title.strip():
-        return translated.strip()
+    if translated:
+        cleaned = translated.strip()
+        japanese_only = _extract_japanese_text(cleaned)
+        if japanese_only:
+            return japanese_only
+        if cleaned and cleaned != title.strip() and _contains_japanese(cleaned):
+            return cleaned
     return None
 
 
@@ -196,6 +230,9 @@ def _translate_text_to_japanese(text: str | None) -> str | None:
     translated = _translate_with_cloudflare(original)
     if translated:
         cleaned = translated.strip()
+        japanese_only = _extract_japanese_text(cleaned)
+        if japanese_only:
+            return japanese_only
         if cleaned and cleaned != original and _contains_japanese(cleaned):
             return cleaned
     return None
@@ -266,17 +303,36 @@ def put_summary(payload: Dict[str, Any]) -> None:
     existing_created_at = _coerce_int(existing_item.get("created_at"))
 
     summaries_payload = dict(payload.get("summaries") or {})
-    translated_summary = _translate_text_to_japanese(summaries_payload.get("summary_long"))
+    raw_summary_original = (summaries_payload.get("summary_long") or "").strip()
+    translated_summary = _translate_text_to_japanese(raw_summary_original)
     if translated_summary:
         summaries_payload["summary_long"] = translated_summary
+    elif raw_summary_original:
+        filtered_summary = _extract_japanese_text(raw_summary_original)
+        if filtered_summary:
+            summaries_payload["summary_long"] = filtered_summary
+        elif not _contains_japanese(raw_summary_original):
+            summaries_payload["summary_long"] = SUMMARY_FALLBACK_MESSAGE
+
     payload["summaries"] = summaries_payload
     summaries_for_store: Dict[str, Any] = dict(summaries_payload)
 
     summary_long_value = (summaries_for_store.get("summary_long") or "").strip()
+    if summary_long_value:
+        filtered_summary_long = _extract_japanese_text(summary_long_value)
+        if filtered_summary_long:
+            summary_long_value = filtered_summary_long
+            summaries_for_store["summary_long"] = filtered_summary_long
+        elif not _contains_japanese(summary_long_value):
+            summary_long_value = SUMMARY_FALLBACK_MESSAGE
+            summaries_for_store["summary_long"] = SUMMARY_FALLBACK_MESSAGE
+
     if not is_detail_invocation:
         summary_long_value = ""
         summaries_for_store.pop("summary_long", None)
         summaries_for_store.pop("diff_points", None)
+
+    payload["summaries"] = dict(summaries_for_store)
 
     item = {
         "pk": f"SOURCE#{payload['source']['id']}",

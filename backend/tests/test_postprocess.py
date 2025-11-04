@@ -116,3 +116,35 @@ def test_put_summary_translates_non_japanese_summary(monkeypatch: pytest.MonkeyP
     stored = postprocess.dynamodb.table.items[("SOURCE#source-1", "ITEM#item-1")]
     assert stored["summaries"]["summary_long"] == translated_text
     assert payload["summaries"]["summary_long"] == translated_text
+
+
+def test_put_summary_strips_english_segments() -> None:
+    payload = _build_payload(
+        summaries={
+            "summary_long": "This is an English sentence. 日本語の説明です。",
+            "diff_points": [],
+        },
+        request_context={"reason": "detail", "requested_at": "1712345678"},
+        generate_detailed_summary=True,
+    )
+
+    postprocess.put_summary(payload)
+
+    stored = postprocess.dynamodb.table.items[("SOURCE#source-1", "ITEM#item-1")]
+    assert stored["summaries"]["summary_long"] == "日本語の説明です。"
+
+
+def test_put_summary_sets_fallback_when_no_japanese_available() -> None:
+    payload = _build_payload(
+        summaries={
+            "summary_long": "Completely English summary without Japanese.",
+            "diff_points": ["Point A"],
+        },
+        request_context={"reason": "detail", "requested_at": "1712345678"},
+        generate_detailed_summary=True,
+    )
+
+    postprocess.put_summary(payload)
+
+    stored = postprocess.dynamodb.table.items[("SOURCE#source-1", "ITEM#item-1")]
+    assert stored["summaries"]["summary_long"] == postprocess.SUMMARY_FALLBACK_MESSAGE
