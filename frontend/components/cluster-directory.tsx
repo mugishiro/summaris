@@ -593,6 +593,11 @@ export function ClusterDirectory({ clusters }: Props) {
           throw new Error(`Failed to initiate summary generation (${ensureResponse.status})`);
         }
 
+        if (ensureResponse.status === 202) {
+          startPolling(cluster.id);
+          return;
+        }
+
         const rawText = await ensureResponse.text();
         if (rawText) {
           try {
@@ -612,9 +617,11 @@ export function ClusterDirectory({ clusters }: Props) {
                 stopPolling(cluster.id);
                 return;
               }
+              startPolling(cluster.id);
+              return;
             }
-          } catch {
-            // ignore JSON parse errors; polling will update the state
+          } catch (error) {
+            console.error('Failed to parse detail initiation payload', error);
           }
         }
 
