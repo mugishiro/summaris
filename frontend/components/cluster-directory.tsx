@@ -35,18 +35,14 @@ const SOURCE_CATEGORY_OPTIONS: SourceCategoryOption[] = [
   { key: 'africa', label: 'アフリカ' },
 ];
 
-const SOURCE_CATEGORY_LOOKUP: Record<SourceCategory, readonly string[]> = {
-  all: [],
-  domestic: ['nhk-news'],
-  europe: ['bbc-world', 'dw-world', 'el-pais'],
-  'middle-east': ['al-jazeera-english'],
-  asia: ['straits-times', 'times-of-india'],
-  africa: ['allafrica-latest'],
+const SOURCE_CATEGORY_SETS: Record<SourceCategory, ReadonlySet<string>> = {
+  all: new Set(),
+  domestic: new Set(['nhk-news']),
+  europe: new Set(['bbc-world', 'dw-world', 'el-pais']),
+  'middle-east': new Set(['al-jazeera-english']),
+  asia: new Set(['straits-times', 'times-of-india']),
+  africa: new Set(['allafrica-latest']),
 };
-
-const SOURCE_CATEGORY_SETS: Record<SourceCategory, ReadonlySet<string>> = Object.fromEntries(
-  Object.entries(SOURCE_CATEGORY_LOOKUP).map(([key, ids]) => [key, new Set(ids)])
-) as Record<SourceCategory, ReadonlySet<string>>;
 
 const VIEW_OPTIONS: ViewOption[] = [
   { label: '今日', key: 'today' },
