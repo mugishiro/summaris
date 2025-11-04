@@ -481,6 +481,59 @@ export function ClusterDirectory({ clusters }: Props) {
     }
   }, []);
 
+  const handleDetailResponse = useCallback(
+    async (clusterId: string, response: Response): Promise<boolean> => {
+      if (response.status === 404) {
+        stopPolling(clusterId);
+        return true;
+      }
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const textBody = await response.text();
+      if (!textBody.trim()) {
+        return false;
+      }
+
+      try {
+        const payload = JSON.parse(textBody) as {
+          cluster?: ClusterSummary | null;
+          data?: ClusterSummary | null;
+        } & Partial<ClusterSummary>;
+
+        let candidate = payload?.cluster ?? payload?.data ?? null;
+        if (!candidate && payload && typeof payload.id === 'string') {
+          candidate = payload as ClusterSummary;
+        }
+
+        if (candidate) {
+          const normalised = normaliseClusterSummary(candidate);
+          setClusterDetails((prev) => ({
+            ...prev,
+            [clusterId]: normalised,
+          }));
+          const status = (normalised.detailStatus ?? 'partial') as ClusterSummary['detailStatus'];
+          if (status === 'ready' || status === 'stale' || status === 'failed') {
+            stopPolling(clusterId);
+            return true;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to parse cluster detail payload', error);
+      }
+
+      return false;
+    },
+    [setClusterDetails, stopPolling]
+  );
+  const handleDetailResponseRef = useRef(handleDetailResponse);
+  useEffect(() => {
+    handleDetailResponseRef.current = handleDetailResponse;
+  }, [handleDetailResponse]);
+
+
   const startPolling = useCallback(
     (clusterId: string) => {
       if (pollersRef.current.has(clusterId)) {
@@ -499,34 +552,9 @@ export function ClusterDirectory({ clusters }: Props) {
             return;
           }
 
-          if (response.ok) {
-            const textBody = await response.text();
-            if (textBody) {
-              try {
-                const payload = JSON.parse(textBody) as {
-                  cluster?: ClusterSummary | null;
-                  data?: ClusterSummary | null;
-                } & Partial<ClusterSummary>;
-                let candidate = payload?.cluster ?? payload?.data ?? null;
-                if (!candidate && payload && typeof payload.id === 'string') {
-                  candidate = payload as ClusterSummary;
-                }
-                if (candidate) {
-                  const normalised = normaliseClusterSummary(candidate);
-                  setClusterDetails((prev) => ({
-                    ...prev,
-                    [clusterId]: normalised,
-                  }));
-                  const status = (normalised.detailStatus ?? 'partial') as ClusterSummary['detailStatus'];
-                  if (status === 'ready' || status === 'stale' || status === 'failed') {
-                    stopPolling(clusterId);
-                    return;
-                  }
-                }
-              } catch (error) {
-                console.error('Failed to parse cluster detail payload', error);
-              }
-            }
+          const done = await handleDetailResponseRef.current(clusterId, response);
+          if (done) {
+            return;
           }
         } catch (error) {
           console.error('Failed to poll cluster detail', error);
@@ -543,7 +571,7 @@ export function ClusterDirectory({ clusters }: Props) {
       const timeoutId = window.setTimeout(poll, 0);
       pollersRef.current.set(clusterId, timeoutId);
     },
-    [setClusterDetails, stopPolling]
+    [stopPolling]
   );
 
   useEffect(() => {
@@ -596,39 +624,10 @@ export function ClusterDirectory({ clusters }: Props) {
           throw new Error(`Failed to initiate summary generation (${ensureResponse.status})`);
         }
 
-        if (ensureResponse.status === 202) {
+        const completed = await handleDetailResponse(cluster.id, ensureResponse);
+        if (!completed) {
           startPolling(cluster.id);
-          return;
         }
-
-        const rawText = await ensureResponse.text();
-        if (rawText) {
-          try {
-            const parsed = JSON.parse(rawText) as {
-              cluster?: ClusterSummary | null;
-              data?: ClusterSummary | null;
-            };
-            const immediate = parsed?.cluster ?? parsed?.data ?? null;
-            if (immediate) {
-              const normalised = normaliseClusterSummary(immediate);
-              setClusterDetails((prev) => ({
-                ...prev,
-                [cluster.id]: normalised,
-              }));
-              const status = (normalised.detailStatus ?? 'partial') as ClusterSummary['detailStatus'];
-              if (status === 'ready' || status === 'stale' || status === 'failed') {
-                stopPolling(cluster.id);
-                return;
-              }
-              startPolling(cluster.id);
-              return;
-            }
-          } catch (error) {
-            console.error('Failed to parse detail initiation payload', error);
-          }
-        }
-
-        startPolling(cluster.id);
       } catch (error) {
         console.error('Failed to initiate summary generation', error);
         stopPolling(cluster.id);
@@ -642,7 +641,7 @@ export function ClusterDirectory({ clusters }: Props) {
         }));
       }
     },
-    [startPolling, stopPolling]
+    [handleDetailResponse, startPolling, stopPolling]
   );
 
   const handleOpenCluster = useCallback(
