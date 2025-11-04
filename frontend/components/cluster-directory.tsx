@@ -19,6 +19,35 @@ type SourceGroup = {
   clusters: ClusterSummary[];
 };
 
+type SourceCategory = 'all' | 'domestic' | 'europe' | 'middle-east' | 'asia' | 'africa';
+
+type SourceCategoryOption = {
+  key: SourceCategory;
+  label: string;
+};
+
+const SOURCE_CATEGORY_OPTIONS: SourceCategoryOption[] = [
+  { key: 'all', label: 'すべて' },
+  { key: 'domestic', label: '国内メディア' },
+  { key: 'europe', label: '欧州' },
+  { key: 'middle-east', label: '中東' },
+  { key: 'asia', label: 'アジア' },
+  { key: 'africa', label: 'アフリカ' },
+];
+
+const SOURCE_CATEGORY_LOOKUP: Record<SourceCategory, readonly string[]> = {
+  all: [],
+  domestic: ['nhk-news'],
+  europe: ['bbc-world', 'dw-world', 'el-pais'],
+  'middle-east': ['al-jazeera-english'],
+  asia: ['straits-times', 'times-of-india'],
+  africa: ['allafrica-latest'],
+};
+
+const SOURCE_CATEGORY_SETS: Record<SourceCategory, ReadonlySet<string>> = Object.fromEntries(
+  Object.entries(SOURCE_CATEGORY_LOOKUP).map(([key, ids]) => [key, new Set(ids)])
+) as Record<SourceCategory, ReadonlySet<string>>;
+
 const VIEW_OPTIONS: ViewOption[] = [
   { label: '今日', key: 'today' },
   { label: '昨日', key: 'yesterday' },
@@ -108,6 +137,7 @@ const QUOTED_VALUE_RE = (key: string) =>
 const ARRAY_VALUE_RE = (key: string) =>
   new RegExp(`"${key}"\\s*:\\s*\\[(.*?)\\]`, 'is');
 const JP_TEXT_RE = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/;
+
 
 function groupClustersBySource(clusters: ClusterSummary[]): SourceGroup[] {
   const map = new Map<string, SourceGroup>();
@@ -385,6 +415,7 @@ export function ClusterDirectory({ clusters }: Props) {
     () => clusters.map((cluster) => normaliseClusterSummary(cluster)),
     [clusters]
   );
+  const [sourceCategory, setSourceCategory] = useState<SourceCategory>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('today');
   const [activeClusterId, setActiveClusterId] = useState<string | null>(null);
   const [clusterDetails, setClusterDetails] = useState<Record<string, ClusterSummary>>({});
@@ -394,7 +425,21 @@ export function ClusterDirectory({ clusters }: Props) {
   useEffect(() => {
     clusterDetailsRef.current = clusterDetails;
   }, [clusterDetails]);
+  const filteredClusters = useMemo(() => {
+    if (sourceCategory === 'all') {
+      return normalisedClusters;
+    }
+    const allowed = SOURCE_CATEGORY_SETS[sourceCategory];
+    return normalisedClusters.filter((cluster) =>
+      cluster.sources.some((source) => allowed.has(source.id))
+    );
+  }, [normalisedClusters, sourceCategory]);
 
+  useEffect(() => {
+    if (activeClusterId && !filteredClusters.some((cluster) => cluster.id === activeClusterId)) {
+      setActiveClusterId(null);
+    }
+  }, [filteredClusters, activeClusterId]);
   const baseClusterMap = useMemo(() => {
     const map = new Map<string, ClusterSummary>();
     normalisedClusters.forEach((cluster) => map.set(cluster.id, cluster));
@@ -429,10 +474,10 @@ export function ClusterDirectory({ clusters }: Props) {
   }, [normalisedClusters]);
 
   const latestClusters = useMemo(() => {
-    return [...normalisedClusters].sort(
+    return [...filteredClusters].sort(
       (a, b) => getRegistrationTimestamp(b) - getRegistrationTimestamp(a)
     );
-  }, [normalisedClusters]);
+  }, [filteredClusters]);
 
   const todayClusters = useMemo(() => {
     const now = new Date();
@@ -805,6 +850,28 @@ const renderClusterList = useCallback(
 
   return (
     <div className="flex flex-col gap-6">
+      <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-3 text-sm">
+        <div className="flex flex-wrap gap-2">
+          {SOURCE_CATEGORY_OPTIONS.map((option) => {
+            const isActive = sourceCategory === option.key;
+            return (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => setSourceCategory(option.key)}
+                className={`rounded-full px-4 py-2 text-sm transition ${
+                  isActive
+                    ? 'bg-emerald-500 text-white shadow'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-3 text-sm">
         <div className="flex flex-wrap gap-2">
           {VIEW_OPTIONS.map((option) => {
