@@ -506,8 +506,11 @@ export function ClusterDirectory({ clusters }: Props) {
                 const payload = JSON.parse(textBody) as {
                   cluster?: ClusterSummary | null;
                   data?: ClusterSummary | null;
-                };
-                const candidate = payload?.cluster ?? payload?.data ?? null;
+                } & Partial<ClusterSummary>;
+                let candidate = payload?.cluster ?? payload?.data ?? null;
+                if (!candidate && payload && typeof payload.id === 'string') {
+                  candidate = payload as ClusterSummary;
+                }
                 if (candidate) {
                   const normalised = normaliseClusterSummary(candidate);
                   setClusterDetails((prev) => ({
