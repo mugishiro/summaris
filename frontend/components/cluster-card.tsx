@@ -47,19 +47,19 @@ export function ClusterCard({ cluster }: { cluster: ClusterSummary }) {
   }, [cluster.updatedAt]);
   const summary = cluster.summaryLong?.trim();
   return (
-    <article className="flex flex-col gap-4 rounded-xl border border-slate-800 bg-slate-900/40 p-5 shadow-sm shadow-slate-950/40 transition hover:border-sky-500/40">
+    <article className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white/80 p-5 shadow-sm shadow-slate-200/60 transition hover:border-sky-500/40 dark:border-slate-800 dark:bg-slate-900/40 dark:shadow-slate-950/40">
       <Link
         href={`/cluster/${cluster.id}`}
-        className="line-clamp-2 break-words text-lg font-semibold text-slate-100 hover:text-sky-200"
+        className="line-clamp-2 break-words text-lg font-semibold text-slate-900 transition-colors hover:text-sky-600 dark:text-slate-100 dark:hover:text-sky-200"
       >
         {cluster.headline}
       </Link>
       <DetailStatusBadge status={cluster.detailStatus} className="self-start" />
-      <p className="break-words text-sm leading-relaxed text-slate-300">
+      <p className="break-words text-sm leading-relaxed text-slate-700 dark:text-slate-300">
         {summary && summary.length > 0 ? summary : '要約はまだ生成されていません。'}
       </p>
-      <div className="flex flex-col gap-2 text-sm text-slate-400">
-        <p className="text-xs">更新: {relative ?? formatAbsolute(cluster.updatedAt)}</p>
+      <div className="flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-xs text-slate-500 dark:text-slate-400">更新: {relative ?? formatAbsolute(cluster.updatedAt)}</p>
         <SourceCredits sources={cluster.sources} primaryHeadline={cluster.headline} />
       </div>
     </article>

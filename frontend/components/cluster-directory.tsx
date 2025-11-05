@@ -695,13 +695,13 @@ export function ClusterDirectory({ clusters }: Props) {
 
 const renderClusterList = useCallback(
     (clusterList: ClusterSummary[], emptyMessage: string) => (
-      <section className="rounded-xl border border-slate-800 bg-slate-900/40">
-        <div className="border-b border-slate-800 px-4 py-3 text-xs text-slate-500">
+      <section className="rounded-xl border border-slate-200 bg-white/80 dark:border-slate-800 dark:bg-slate-900/40">
+        <div className="border-b border-slate-200 px-4 py-3 text-xs text-slate-600 dark:border-slate-800 dark:text-slate-400">
           該当件数: {clusterList.length} 件
         </div>
-        <ul className="max-h-[60vh] overflow-y-auto divide-y divide-slate-800">
+        <ul className="max-h-[60vh] overflow-y-auto divide-y divide-slate-200 dark:divide-slate-800">
           {clusterList.length === 0 && (
-            <li className="px-4 py-6 text-sm text-slate-400">{emptyMessage}</li>
+            <li className="px-4 py-6 text-sm text-slate-600 dark:text-slate-400">{emptyMessage}</li>
           )}
           {clusterList.map((cluster) => {
             const resolvedCluster = clusterDetails[cluster.id] ?? cluster;
@@ -717,14 +717,14 @@ const renderClusterList = useCallback(
                 <button
                   type="button"
                   onClick={() => handleOpenCluster(cluster.id)}
-                  className="flex w-full items-start gap-3 overflow-hidden px-4 py-3 text-left text-sm text-slate-200 transition hover:bg-slate-800/60"
+                  className="flex w-full items-start gap-3 overflow-hidden px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/60"
                 >
                   <div className="flex min-w-0 flex-1 items-start gap-3 overflow-hidden">
                     <div className="min-w-0 flex-1 overflow-hidden">
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
                         {formatDisplayDate(registeredIso)} ・ {siteName}
                       </p>
-                      <p className="mt-1 truncate font-semibold text-slate-100">{displayTitle}</p>
+                      <p className="mt-1 truncate font-semibold text-slate-900 dark:text-slate-100">{displayTitle}</p>
                     </div>
                     <DetailStatusBadge
                       status={resolvedCluster.detailStatus}
@@ -745,8 +745,8 @@ const renderClusterList = useCallback(
     (groups: SourceGroup[], emptyMessage: string) => (
       <section className="flex flex-col gap-4">
         {groups.map(({ id, label, url, clusters: grouped }) => (
-          <div key={id} className="rounded-xl border border-slate-800 bg-slate-900/40">
-            <header className="flex items-center justify-between gap-4 border-b border-slate-800 px-4 py-3 text-base text-slate-100">
+          <div key={id} className="rounded-xl border border-slate-200 bg-white/80 dark:border-slate-800 dark:bg-slate-900/40">
+            <header className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3 text-base text-slate-900 dark:border-slate-800 dark:text-slate-100">
               {(() => {
                 const resolvedUrl = url || grouped[0]?.sources?.find((s) => s.id === id)?.url;
                 if (resolvedUrl) {
@@ -755,21 +755,21 @@ const renderClusterList = useCallback(
                       href={resolvedUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="max-w-[70%] overflow-hidden truncate text-left font-semibold text-slate-100 underline decoration-sky-500 underline-offset-4"
+                      className="max-w-[70%] overflow-hidden truncate text-left font-semibold text-slate-900 underline decoration-sky-500 underline-offset-4 dark:text-slate-100"
                     >
                       {label}
                     </a>
                   );
                 }
                 return (
-                  <span className="max-w-[70%] overflow-hidden truncate text-left font-semibold text-slate-100">
+                  <span className="max-w-[70%] overflow-hidden truncate text-left font-semibold text-slate-900 dark:text-slate-100">
                     {label}
                   </span>
                 );
               })()}
-              <span className="text-xs text-slate-400">{grouped.length} 件</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{grouped.length} 件</span>
             </header>
-            <ul className="max-h-[50vh] overflow-y-auto divide-y divide-slate-800">
+            <ul className="max-h-[50vh] overflow-y-auto divide-y divide-slate-200 dark:divide-slate-800">
               {grouped.map((cluster) => {
                 const resolvedCluster = clusterDetails[cluster.id] ?? cluster;
                 const displayTitle = deriveDisplayTitle(resolvedCluster);
@@ -782,12 +782,12 @@ const renderClusterList = useCallback(
                     <button
                       type="button"
                       onClick={() => handleOpenCluster(cluster.id)}
-                      className="flex w-full items-start gap-3 overflow-hidden px-4 py-3 text-left text-sm text-slate-200 transition hover:bg-slate-800/60"
+                      className="flex w-full items-start gap-3 overflow-hidden px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/60"
                     >
                       <div className="flex min-w-0 flex-1 items-start gap-3 overflow-hidden">
                         <div className="min-w-0 flex-1 overflow-hidden">
-                          <p className="text-xs text-slate-500">{formatDisplayDate(registeredIso)}</p>
-                          <p className="mt-1 truncate font-semibold text-slate-100">{displayTitle}</p>
+                          <p className="text-xs text-slate-600 dark:text-slate-400">{formatDisplayDate(registeredIso)}</p>
+                          <p className="mt-1 truncate font-semibold text-slate-900 dark:text-slate-100">{displayTitle}</p>
                         </div>
                         <DetailStatusBadge
                           status={resolvedCluster.detailStatus}
@@ -802,7 +802,7 @@ const renderClusterList = useCallback(
           </div>
         ))}
         {groups.length === 0 && (
-          <p className="rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-6 text-sm text-slate-400">
+          <p className="rounded-xl border border-slate-200 bg-white/80 px-4 py-6 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-400">
             {emptyMessage}
           </p>
         )}
@@ -859,7 +859,7 @@ const renderClusterList = useCallback(
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-3 text-sm">
+      <section className="rounded-xl border border-slate-200 bg-white/80 p-3 text-sm dark:border-slate-800 dark:bg-slate-900/40">
         <div className="flex flex-wrap gap-2">
           {SOURCE_CATEGORY_OPTIONS.map((option) => {
             const isActive = sourceCategory === option.key;
@@ -871,7 +871,7 @@ const renderClusterList = useCallback(
                 className={`rounded-full px-4 py-2 text-sm transition ${
                   isActive
                     ? 'bg-emerald-500 text-white shadow'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    : 'bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
                 }`}
               >
                 {option.label}
@@ -881,7 +881,7 @@ const renderClusterList = useCallback(
         </div>
       </section>
 
-      <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-3 text-sm">
+      <section className="rounded-xl border border-slate-200 bg-white/80 p-3 text-sm dark:border-slate-800 dark:bg-slate-900/40">
         <div className="flex flex-wrap gap-2">
           {VIEW_OPTIONS.map((option) => {
             const isActive = viewMode === option.key;
@@ -893,7 +893,7 @@ const renderClusterList = useCallback(
                 className={`rounded-full px-4 py-2 text-sm transition ${
                   isActive
                     ? 'bg-sky-500 text-white shadow'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    : 'bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
                 }`}
               >
                 {option.label}
@@ -914,24 +914,24 @@ const renderClusterList = useCallback(
 
       {activeCluster && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/70 px-4 py-10 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 py-10 backdrop-blur-sm dark:bg-slate-950/70"
           onClick={() => setActiveClusterId(null)}
         >
           <article
-            className="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-slate-800 bg-slate-900/90 p-6 text-sm text-slate-200 shadow-2xl"
+            className="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-700 shadow-2xl dark:border-slate-800 dark:bg-slate-900/90 dark:text-slate-200"
             onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               onClick={() => setActiveClusterId(null)}
               aria-label="閉じる"
-              className="absolute right-4 top-4 rounded-full bg-slate-800 px-2 py-1 text-sm text-slate-300 transition hover:bg-slate-700"
+              className="absolute right-4 top-4 rounded-full bg-slate-200 px-2 py-1 text-sm text-slate-700 transition hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
             >
               ×
             </button>
             <header className="mb-4 flex flex-col gap-2">
               <h2 className="line-clamp-2 break-words text-xl font-semibold">{deriveDisplayTitle(activeCluster)}</h2>
-              <time className="text-xs text-slate-500">
+              <time className="text-xs text-slate-500 dark:text-slate-400">
                 {formatDisplayDate(activeCluster.createdAt ?? activeCluster.detailRequestedAt ?? activeCluster.updatedAt)}
               </time>
             </header>
@@ -947,7 +947,7 @@ const renderClusterList = useCallback(
                       disabled={activeClusterDetailState.isGenerating}
                       className={`rounded-full px-4 py-2 text-sm transition ${
                         activeClusterDetailState.isGenerating
-                          ? 'bg-slate-800 text-slate-400'
+                          ? 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
                           : 'bg-sky-500 text-white hover:bg-sky-600'
                       }`}
                       >
@@ -972,7 +972,7 @@ const renderClusterList = useCallback(
                   </div>
                   <div className="flex flex-col gap-2">
                     {activeClusterDetailState.detailStatus === 'partial' && (
-                      <p className="text-sm text-slate-400">
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
                         要約はまだ生成されていません。上のボタンから生成できます。
                       </p>
                     )}
@@ -983,12 +983,12 @@ const renderClusterList = useCallback(
                     )}
                     {activeClusterDetailState.detailStatus === 'stale' &&
                       !activeClusterDetailState.isGenerating && (
-                        <p className="text-sm text-slate-400">
+                        <p className="text-sm text-slate-600 dark:text-slate-400">
                           要約を再生成できます。上のボタンをクリックしてください。
                         </p>
                       )}
                     {activeClusterDetailState.hasSummary && (
-                      <p className="whitespace-pre-wrap break-words leading-relaxed text-slate-200">
+                      <p className="whitespace-pre-wrap break-words leading-relaxed text-slate-800 dark:text-slate-200">
                         {activeClusterDetailState.summary}
                       </p>
                     )}

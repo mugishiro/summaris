@@ -18,8 +18,8 @@ export function SourceCredits({ sources, heading = '出典', primaryHeadline }: 
   }
 
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-2 text-xs text-slate-400">
-      <h4 id={headingId} className="font-medium text-slate-200">
+    <section aria-labelledby={headingId} className="flex flex-col gap-2 text-xs text-slate-600 dark:text-slate-400">
+      <h4 id={headingId} className="font-medium text-slate-800 dark:text-slate-200">
         {heading}
       </h4>
       <ul className="space-y-1">
@@ -37,19 +37,19 @@ export function SourceCredits({ sources, heading = '出典', primaryHeadline }: 
           return (
             <li key={source.id} className="leading-relaxed">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span className="rounded bg-slate-800 px-2 py-0.5 text-slate-200">{source.name}</span>
+                <span className="rounded bg-slate-200 px-2 py-0.5 text-slate-800 dark:bg-slate-800 dark:text-slate-200">{source.name}</span>
               </div>
               {href ? (
                 <a
                   href={href}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-1 block max-w-full truncate text-sky-300 underline-offset-2 hover:underline"
+                  className="mt-1 block max-w-full truncate text-sky-600 underline-offset-2 hover:underline dark:text-sky-300"
                 >
                   {displayLabel}
                 </a>
               ) : (
-                <span className="mt-1 block text-slate-500">URL 未設定</span>
+                <span className="mt-1 block text-slate-500 dark:text-slate-500">URL 未設定</span>
               )}
             </li>
           );
