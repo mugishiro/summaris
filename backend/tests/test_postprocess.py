@@ -118,6 +118,28 @@ def test_put_summary_translates_non_japanese_summary(monkeypatch: pytest.MonkeyP
     assert payload["summaries"]["summary_long"] == translated_text
 
 
+def test_ingest_preserves_existing_ready_summary() -> None:
+    table = postprocess.dynamodb.table
+    table.put_item(
+        {
+            "pk": "SOURCE#source-1",
+            "sk": "ITEM#item-1",
+            "summaries": {"summary_long": "既存の要約", "diff_points": ["既存ポイント"]},
+            "detail_status": "ready",
+            "detail_ready_at": 1700000000,
+        }
+    )
+
+    payload = _build_payload(request_context={"reason": "ingest"})
+
+    postprocess.put_summary(payload)
+
+    stored = table.items[("SOURCE#source-1", "ITEM#item-1")]
+    assert stored["detail_status"] == "ready"
+    assert stored["summaries"]["summary_long"] == "既存の要約"
+    assert stored["summaries"]["diff_points"] == ["既存ポイント"]
+
+
 def test_put_summary_strips_english_segments() -> None:
     payload = _build_payload(
         summaries={

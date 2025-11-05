@@ -296,6 +296,13 @@ def put_summary(payload: Dict[str, Any]) -> None:
         LOGGER.debug("Failed to load existing summary item for merge: %s", exc)
     truncated_title = _truncate_title(payload["item"]["title"])
 
+    existing_summaries = existing_item.get("summaries") or {}
+    existing_summary_long = (existing_summaries.get("summary_long") or "").strip()
+    existing_diff_points = existing_summaries.get("diff_points") or []
+    existing_status = existing_item.get("detail_status")
+    existing_ready_at = _coerce_int(existing_item.get("detail_ready_at"))
+    existing_expires_at = _coerce_int(existing_item.get("detail_expires_at"))
+
     processed_link = ensure_source_link(payload["source"]["id"], payload["item"]["link"])
     if processed_link:
         payload["item"]["link"] = processed_link
@@ -328,9 +335,15 @@ def put_summary(payload: Dict[str, Any]) -> None:
             summaries_for_store["summary_long"] = SUMMARY_FALLBACK_MESSAGE
 
     if not is_detail_invocation:
-        summary_long_value = ""
-        summaries_for_store.pop("summary_long", None)
-        summaries_for_store.pop("diff_points", None)
+        if existing_status in {"ready", "stale"} and existing_summary_long:
+            summaries_for_store["summary_long"] = existing_summary_long
+            if existing_diff_points:
+                summaries_for_store["diff_points"] = existing_diff_points
+            summary_long_value = existing_summary_long
+        else:
+            summary_long_value = ""
+            summaries_for_store.pop("summary_long", None)
+            summaries_for_store.pop("diff_points", None)
 
     payload["summaries"] = dict(summaries_for_store)
 
@@ -365,9 +378,6 @@ def put_summary(payload: Dict[str, Any]) -> None:
         if DETAIL_TTL_SECONDS > 0:
             item["detail_expires_at"] = now + DETAIL_TTL_SECONDS
     else:
-        existing_status = existing_item.get("detail_status")
-        existing_ready_at = _coerce_int(existing_item.get("detail_ready_at"))
-        existing_expires_at = _coerce_int(existing_item.get("detail_expires_at"))
         if existing_status == "ready" and existing_ready_at:
             item["detail_status"] = "ready"
             item["detail_ready_at"] = existing_ready_at
