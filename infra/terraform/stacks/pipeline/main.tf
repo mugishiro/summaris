@@ -31,9 +31,33 @@ locals {
   content_api_invoke = var.enable_lambda_deployment ? aws_lambda_function.content_api[0].invoke_arn : var.content_api_lambda_invoke_arn
   raw_archive_suffix = coalesce(var.raw_archive_suffix, substr(md5("${var.aws_account_id}-${var.environment}"), 0, 8))
   api_stage_name     = var.environment
+  alarm_topic_name   = (
+    var.alarm_sns_topic_name != null && trimspace(var.alarm_sns_topic_name) != ""
+  ) ? trimspace(var.alarm_sns_topic_name) : "${local.project_prefix}-alerts"
 }
 
 data "aws_partition" "current" {}
+
+resource "aws_sns_topic" "alerts" {
+  name = local.alarm_topic_name
+
+  tags = merge(var.default_tags, {
+    Name        = local.alarm_topic_name
+    Environment = var.environment
+    Service     = "monitoring"
+  })
+}
+
+resource "aws_sns_topic_subscription" "alert_emails" {
+  for_each = {
+    for email in var.alarm_notification_emails : trimspace(email) => trimspace(email)
+    if email != null && trimspace(email) != ""
+  }
+
+  topic_arn = aws_sns_topic.alerts.arn
+  protocol  = "email"
+  endpoint  = each.value
+}
 
 module "summary_table" {
   source = "../../modules/dynamodb"
@@ -772,6 +796,85 @@ resource "aws_cloudwatch_dashboard" "pipeline" {
     raw_queue_name      = module.raw_queue.queue_name
     region              = var.aws_region
   })
+}
+
+resource "aws_cloudwatch_metric_alarm" "summarizer_errors" {
+  count               = var.enable_lambda_deployment ? 1 : 0
+  alarm_name          = "${local.project_prefix}-summarizer-errors"
+  alarm_description   = "prod summarizer Lambda errors detected (sum >= 1 in 5 minutes)"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  threshold           = var.summarizer_error_alarm_threshold
+  metric_name         = "Errors"
+  namespace           = "AWS/Lambda"
+  period              = 300
+  statistic           = "Sum"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    FunctionName = aws_lambda_function.summarizer[0].function_name
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "postprocess_errors" {
+  count               = var.enable_lambda_deployment ? 1 : 0
+  alarm_name          = "${local.project_prefix}-postprocess-errors"
+  alarm_description   = "prod postprocess Lambda errors detected (sum >= 1 in 5 minutes)"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  threshold           = var.postprocess_error_alarm_threshold
+  metric_name         = "Errors"
+  namespace           = "AWS/Lambda"
+  period              = 300
+  statistic           = "Sum"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    FunctionName = aws_lambda_function.postprocess[0].function_name
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "pipeline_failures" {
+  alarm_name          = "${local.project_prefix}-pipeline-failures"
+  alarm_description   = "prod Step Functions pipeline recorded execution failure"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  threshold           = var.pipeline_failure_alarm_threshold
+  metric_name         = "ExecutionsFailed"
+  namespace           = "AWS/States"
+  period              = 300
+  statistic           = "Sum"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    StateMachineArn = module.pipeline_state_machine.arn
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "api_gateway_5xx" {
+  alarm_name          = "${local.project_prefix}-api-5xx"
+  alarm_description   = "prod content API has 5xx responses (sum >= 5 in 5 minutes)"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  threshold           = var.api_gateway_5xx_alarm_threshold
+  metric_name         = "5xx"
+  namespace           = "AWS/ApiGateway"
+  period              = 300
+  statistic           = "Sum"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    ApiId = aws_apigatewayv2_api.content.id
+    Stage = aws_apigatewayv2_stage.content.name
+  }
 }
 
 module "ingestion_scheduler" {

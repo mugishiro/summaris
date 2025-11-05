@@ -223,6 +223,42 @@ variable "content_api_lambda_invoke_arn" {
   }
 }
 
+variable "alarm_sns_topic_name" {
+  description = "Custom name for the monitoring SNS topic (defaults to <environment>-<project>-alerts)"
+  type        = string
+  default     = null
+}
+
+variable "alarm_notification_emails" {
+  description = "List of email addresses to subscribe to the monitoring SNS topic"
+  type        = list(string)
+  default     = []
+}
+
+variable "summarizer_error_alarm_threshold" {
+  description = "Number of summarizer Lambda errors within five minutes required to raise the alarm"
+  type        = number
+  default     = 1
+}
+
+variable "postprocess_error_alarm_threshold" {
+  description = "Number of postprocess Lambda errors within five minutes required to raise the alarm"
+  type        = number
+  default     = 1
+}
+
+variable "pipeline_failure_alarm_threshold" {
+  description = "Number of Step Functions execution failures within five minutes required to raise the alarm"
+  type        = number
+  default     = 1
+}
+
+variable "api_gateway_5xx_alarm_threshold" {
+  description = "Number of API Gateway 5xx responses within five minutes required to raise the alarm"
+  type        = number
+  default     = 5
+}
+
 variable "bedrock_model_id" {
   description = "Bedrock model ID for summarizer"
   type        = string
