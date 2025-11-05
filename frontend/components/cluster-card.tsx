@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 
 import type { ClusterSummary } from '../lib/types';
 import { SourceCredits } from './source-credits';
+import { DetailStatusBadge } from './detail-status-badge';
 
 function formatRelative(dateIso: string): string {
   const date = new Date(dateIso);
@@ -53,12 +54,13 @@ export function ClusterCard({ cluster }: { cluster: ClusterSummary }) {
       >
         {cluster.headline}
       </Link>
+      <DetailStatusBadge status={cluster.detailStatus} className="self-start" />
       <p className="break-words text-sm leading-relaxed text-slate-300">
         {summary && summary.length > 0 ? summary : '要約はまだ生成されていません。'}
       </p>
       <div className="flex flex-col gap-2 text-sm text-slate-400">
         <p className="text-xs">更新: {relative ?? formatAbsolute(cluster.updatedAt)}</p>
-      <SourceCredits sources={cluster.sources} primaryHeadline={cluster.headline} />
+        <SourceCredits sources={cluster.sources} primaryHeadline={cluster.headline} />
       </div>
     </article>
   );

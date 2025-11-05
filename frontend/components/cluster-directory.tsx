@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ClusterSummary } from '../lib/types';
 import { SourceCredits } from './source-credits';
+import { DetailStatusBadge } from './detail-status-badge';
 
 type ViewMode = 'today' | 'yesterday' | 'latest';
 
@@ -718,11 +719,17 @@ const renderClusterList = useCallback(
                   onClick={() => handleOpenCluster(cluster.id)}
                   className="flex w-full items-start gap-3 overflow-hidden px-4 py-3 text-left text-sm text-slate-200 transition hover:bg-slate-800/60"
                 >
-                  <div className="min-w-0 flex-1 overflow-hidden">
-                    <p className="text-xs text-slate-500">
-                      {formatDisplayDate(registeredIso)} ・ {siteName}
-                    </p>
-                    <p className="mt-1 truncate font-semibold text-slate-100">{displayTitle}</p>
+                  <div className="flex min-w-0 flex-1 items-start gap-3 overflow-hidden">
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                      <p className="text-xs text-slate-500">
+                        {formatDisplayDate(registeredIso)} ・ {siteName}
+                      </p>
+                      <p className="mt-1 truncate font-semibold text-slate-100">{displayTitle}</p>
+                    </div>
+                    <DetailStatusBadge
+                      status={resolvedCluster.detailStatus}
+                      className="shrink-0 whitespace-nowrap"
+                    />
                   </div>
                 </button>
               </li>
@@ -777,9 +784,15 @@ const renderClusterList = useCallback(
                       onClick={() => handleOpenCluster(cluster.id)}
                       className="flex w-full items-start gap-3 overflow-hidden px-4 py-3 text-left text-sm text-slate-200 transition hover:bg-slate-800/60"
                     >
-                      <div className="min-w-0 flex-1 overflow-hidden">
-                        <p className="text-xs text-slate-500">{formatDisplayDate(registeredIso)}</p>
-                        <p className="mt-1 truncate font-semibold text-slate-100">{displayTitle}</p>
+                      <div className="flex min-w-0 flex-1 items-start gap-3 overflow-hidden">
+                        <div className="min-w-0 flex-1 overflow-hidden">
+                          <p className="text-xs text-slate-500">{formatDisplayDate(registeredIso)}</p>
+                          <p className="mt-1 truncate font-semibold text-slate-100">{displayTitle}</p>
+                        </div>
+                        <DetailStatusBadge
+                          status={resolvedCluster.detailStatus}
+                          className="shrink-0 whitespace-nowrap"
+                        />
                       </div>
                     </button>
                   </li>
