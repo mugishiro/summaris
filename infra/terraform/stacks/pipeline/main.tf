@@ -788,8 +788,12 @@ module "ingestion_scheduler" {
 module "raw_queue" {
   source = "../../modules/sqs"
 
-  queue_name  = "${local.project_prefix}-raw-queue"
-  dlq_enabled = true
+  queue_name                    = "${local.project_prefix}-raw-queue"
+  dlq_enabled                   = true
+  visibility_timeout_seconds    = max(300, var.queue_worker_visibility_timeout_seconds)
+  dlq_max_receive_count         = 10
+  message_retention_seconds     = var.raw_queue_message_retention_seconds
+  dlq_message_retention_seconds = var.raw_queue_dlq_retention_seconds
   tags = merge(var.default_tags, {
     Environment = var.environment
     Service     = "raw-queue"
@@ -843,6 +847,7 @@ resource "aws_amplify_app" "frontend" {
 
   iam_service_role_arn = aws_iam_role.amplify_service[0].arn
   repository           = trimspace(var.frontend_repository) != "" ? var.frontend_repository : null
+  access_token         = trimspace(var.amplify_github_access_token) != "" ? var.amplify_github_access_token : null
   build_spec           = <<-EOT
     version: 1
     applications:

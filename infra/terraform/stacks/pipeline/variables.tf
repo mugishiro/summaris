@@ -342,3 +342,28 @@ variable "frontend_additional_environment_variables" {
   type        = map(string)
   default     = {}
 }
+
+variable "queue_worker_visibility_timeout_seconds" {
+  description = "Visibility timeout used for the raw queue so that queue worker Lambda can finish processing."
+  type        = number
+  default     = 300
+}
+
+variable "raw_queue_message_retention_seconds" {
+  description = "Retention period for messages in the raw ingestion queue."
+  type        = number
+  default     = 345600
+}
+
+variable "raw_queue_dlq_retention_seconds" {
+  description = "Retention period for messages in the raw queue DLQ."
+  type        = number
+  default     = 1209600
+}
+
+variable "amplify_github_access_token" {
+  description = "GitHub personal access token used by Amplify to clone the repository (leave empty to skip)."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
