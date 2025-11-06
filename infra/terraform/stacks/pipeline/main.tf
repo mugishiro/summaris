@@ -982,6 +982,15 @@ resource "aws_amplify_app" "frontend" {
     var.frontend_additional_environment_variables
   )
 
+  dynamic "custom_rule" {
+    for_each = local.custom_domain_name != "" ? [local.custom_domain_name] : []
+    content {
+      source = "https://www.${custom_rule.value}/<*>"
+      target = "https://${custom_rule.value}/<*>"
+      status = "301"
+    }
+  }
+
   tags = merge(var.default_tags, {
     Environment = var.environment
     Service     = "frontend"
