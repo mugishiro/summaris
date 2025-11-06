@@ -34,6 +34,7 @@ locals {
   alarm_topic_name   = (
     var.alarm_sns_topic_name != null && trimspace(var.alarm_sns_topic_name) != ""
   ) ? trimspace(var.alarm_sns_topic_name) : "${local.project_prefix}-alerts"
+  custom_domain_name = trimspace(var.frontend_custom_domain_name)
 }
 
 data "aws_partition" "current" {}
@@ -1000,4 +1001,32 @@ resource "aws_amplify_branch" "frontend" {
     Environment = var.environment
     Service     = "frontend"
   })
+}
+
+data "aws_route53_zone" "frontend_custom_domain" {
+  count        = (local.custom_domain_name != "" && var.enable_frontend_hosting) ? 1 : 0
+  name         = local.custom_domain_name
+  private_zone = false
+}
+
+resource "aws_amplify_domain_association" "frontend_domain" {
+  count = (local.custom_domain_name != "" && var.enable_frontend_hosting) ? 1 : 0
+
+  app_id      = aws_amplify_app.frontend[0].id
+  domain_name = local.custom_domain_name
+
+  wait_for_verification = true
+
+  dynamic "sub_domain" {
+    for_each = var.frontend_custom_domain_subdomains
+    content {
+      branch_name = aws_amplify_branch.frontend[0].branch_name
+      prefix      = sub_domain.value
+    }
+  }
+
+  depends_on = [
+    aws_amplify_branch.frontend,
+    data.aws_route53_zone.frontend_custom_domain
+  ]
 }

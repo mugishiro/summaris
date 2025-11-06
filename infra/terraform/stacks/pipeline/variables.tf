@@ -403,3 +403,21 @@ variable "amplify_github_access_token" {
   default     = ""
   sensitive   = true
 }
+
+variable "frontend_custom_domain_name" {
+  description = "Custom domain to associate with the Amplify frontend (e.g., example.com). Leave empty to skip."
+  type        = string
+  default     = ""
+}
+
+variable "frontend_custom_domain_certificate_arn" {
+  description = "ACM certificate ARN in ap-northeast-1 for the custom frontend domain."
+  type        = string
+  default     = ""
+}
+
+variable "frontend_custom_domain_subdomains" {
+  description = "List of subdomain prefixes to associate with the Amplify frontend (use empty string for apex domain)."
+  type        = list(string)
+  default     = []
+}
