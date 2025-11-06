@@ -40,6 +40,7 @@ docs/
 *.tfvars.json
 .env
 .env.*
+infra/terraform/stacks/pipeline/prod.secrets.auto.tfvars
 
 # Editor
 .idea/
