@@ -1,10 +1,6 @@
 import json
-import pathlib
-import sys
 
 import pytest
-
-sys.path.append(str(pathlib.Path(__file__).resolve().parents[2]))
 
 from backend.lambdas.diff_validator import handler as diff_validator  # noqa: E402
 

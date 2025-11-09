@@ -1,12 +1,6 @@
-import pathlib
-import sys
 from typing import Any, Dict
 
 import pytest
-
-root = pathlib.Path(__file__).resolve().parents[2]
-sys.path.append(str(root))
-sys.path.append(str(root / "backend" / "lambdas"))
 
 from backend.lambdas.postprocess import handler as postprocess  # noqa: E402
 

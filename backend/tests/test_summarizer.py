@@ -1,12 +1,8 @@
 import io
 import json
-import pathlib
-import sys
 
 import pytest
 from botocore.exceptions import ClientError
-
-sys.path.append(str(pathlib.Path(__file__).resolve().parents[2]))
 
 from backend.lambdas.summarizer import handler as summarizer  # noqa: E402
 

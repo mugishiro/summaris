@@ -1,11 +1,7 @@
 import json
-import pathlib
-import sys
 from types import SimpleNamespace
 
 import pytest
-
-sys.path.append(str(pathlib.Path(__file__).resolve().parents[2]))
 
 from backend.lambdas.preprocessor import handler as preprocessor  # noqa: E402
 

@@ -1,10 +1,6 @@
-import pathlib
-import sys
 import types
 
 import pytest
-
-sys.path.append(str(pathlib.Path(__file__).resolve().parents[2]))
 
 from backend.lambdas.checker import handler as checker  # noqa: E402
 

@@ -1,12 +1,8 @@
 import json
-import pathlib
-import sys
-
-import pytest
 from types import SimpleNamespace
 from urllib.error import HTTPError
 
-sys.path.append(str(pathlib.Path(__file__).resolve().parents[2]))
+import pytest
 
 from backend.lambdas.collector import handler as collector  # noqa: E402
 

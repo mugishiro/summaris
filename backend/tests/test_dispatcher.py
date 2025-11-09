@@ -1,10 +1,6 @@
 import json
-import pathlib
-import sys
 
 import pytest
-
-sys.path.append(str(pathlib.Path(__file__).resolve().parents[2]))
 
 from backend.lambdas.dispatcher import handler as dispatcher  # noqa: E402
 
