@@ -31,17 +31,32 @@ import logging
 import os
 import re
 import unicodedata
+from dataclasses import dataclass
 from typing import Any, Dict, List
 
-from shared.url import normalize_url
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
+
+from backend.lambdas.shared.url import normalize_url
 
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
 
 SIMHASH_BITS = int(os.getenv("SIMHASH_BITS", "64"))
+LANGUAGE_CONFIDENCE_THRESHOLD = float(os.getenv("LANGUAGE_CONFIDENCE_THRESHOLD", "0.7"))
+COMPREHEND_TEXT_LIMIT = int(os.getenv("COMPREHEND_TEXT_LIMIT", "4500"))
+
+comprehend = boto3.client("comprehend")
 
 _WORD_RE = re.compile(r"\w+", re.UNICODE)
+
+
+@dataclass(frozen=True)
+class LanguageDetectionResult:
+    code: str
+    score: float
+    is_reliable: bool
 
 
 def _tokenize(text: str) -> List[str]:
@@ -76,6 +91,38 @@ def compute_simhash(text: str, hashbits: int = SIMHASH_BITS) -> str:
     return f"{fingerprint:0{hashbits // 4}x}"
 
 
+def _prepare_text_for_comprehend(text: str) -> str:
+    """Trim payload to satisfy Comprehend limits."""
+    normalized = (text or "").strip()
+    if not normalized:
+        return ""
+    encoded = normalized.encode("utf-8")
+    if len(encoded) <= COMPREHEND_TEXT_LIMIT:
+        return normalized
+    truncated = encoded[:COMPREHEND_TEXT_LIMIT]
+    return truncated.decode("utf-8", errors="ignore")
+
+
+def detect_language(text: str | None) -> LanguageDetectionResult:
+    prepared = _prepare_text_for_comprehend(text or "")
+    if not prepared:
+        return LanguageDetectionResult(code="und", score=0.0, is_reliable=False)
+
+    try:
+        response = comprehend.detect_dominant_language(Text=prepared)
+    except (BotoCoreError, ClientError) as exc:
+        LOGGER.warning("Failed to detect language via Comprehend: %s", exc)
+        return LanguageDetectionResult(code="und", score=0.0, is_reliable=False)
+
+    languages = response.get("Languages") or []
+    if not languages:
+        return LanguageDetectionResult(code="und", score=0.0, is_reliable=False)
+
+    top = max(languages, key=lambda item: item.get("Score", 0.0))
+    code = top.get("LanguageCode") or "und"
+    score = float(top.get("Score") or 0.0)
+    is_reliable = score >= LANGUAGE_CONFIDENCE_THRESHOLD
+    return LanguageDetectionResult(code=code, score=score, is_reliable=is_reliable)
 
 
 def enrich_event(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -86,6 +133,7 @@ def enrich_event(event: Dict[str, Any]) -> Dict[str, Any]:
 
     normalized_url, fingerprint = normalize_url(event["item"]["link"])
     simhash_value = compute_simhash(event["article_body"])
+    language = detect_language(event.get("article_body", ""))
 
     preprocess_payload = {
         "url": {
@@ -95,6 +143,11 @@ def enrich_event(event: Dict[str, Any]) -> Dict[str, Any]:
         "hashes": {
             "simhash": simhash_value,
             "sha256": hashlib.sha256(event["article_body"].encode("utf-8")).hexdigest(),
+        },
+        "language": {
+            "code": language.code,
+            "score": language.score,
+            "is_reliable": language.is_reliable,
         },
     }
 
@@ -123,6 +176,7 @@ def lambda_handler(event: Any, context: Any) -> Dict[str, Any]:
 
 __all__ = [
     "compute_simhash",
+    "detect_language",
     "normalize_url",
     "enrich_event",
     "lambda_handler",

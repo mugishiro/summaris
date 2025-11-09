@@ -23,7 +23,7 @@ import boto3
 from boto3.dynamodb.conditions import Attr
 from botocore.exceptions import BotoCoreError, ClientError
 
-from shared.url import ensure_source_link
+from backend.lambdas.shared.url import ensure_source_link
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)

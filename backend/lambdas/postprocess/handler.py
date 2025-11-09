@@ -20,7 +20,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 import requests
 from requests.exceptions import RequestException
 
-from shared.url import ensure_source_link
+from backend.lambdas.shared.url import ensure_source_link
 
 
 LOGGER = logging.getLogger(__name__)
