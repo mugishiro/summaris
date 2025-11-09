@@ -10,30 +10,30 @@ type StatusMeta = {
 
 const STATUS_META: Record<Exclude<ClusterSummary['detailStatus'], undefined | null>, StatusMeta> = {
   ready: {
-    label: 'できた！',
+    label: '要約済み',
     className: 'bg-emerald-500/90 text-white',
   },
   stale: {
-    label: 'ちょっと古い',
+    label: '更新推奨',
     className: 'bg-amber-500/80 text-slate-900',
   },
   pending: {
-    label: 'ぐるぐる生成中',
+    label: '生成中…',
     className: 'bg-sky-500/90 text-white',
     spinner: true,
   },
   failed: {
-    label: 'エラーでした',
+    label: '生成失敗',
     className: 'bg-rose-600/90 text-white',
   },
   partial: {
-    label: 'まだ未生成',
+    label: '未生成',
     className: 'bg-slate-700 text-slate-200',
   },
 };
 
 const DEFAULT_META: StatusMeta = {
-  label: 'まだ未生成',
+  label: '未生成',
   className: 'bg-slate-700 text-slate-200',
 };
 

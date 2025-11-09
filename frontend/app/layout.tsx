@@ -6,8 +6,8 @@ import { ThemeToggleButton } from '../components/theme-toggle';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'News Flow',
-  description: '世界のニュースをざっくりまとめてサクッと読むためのビュー',
+  title: 'News Snapshot',
+  description: '世界の要約ニュースを一覧できるダッシュボード',
   metadataBase: new URL('https://example.com')
 };
 
@@ -21,10 +21,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    News Flow
+                    News Snapshot
                   </p>
                   <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
-                    ざっくりニュースまとめ
+                    ニュース要約ビュー
                   </h1>
                 </div>
                 <ThemeToggleButton />
