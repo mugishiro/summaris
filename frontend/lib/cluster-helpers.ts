@@ -299,8 +299,27 @@ function extractSummaryPayload(raw?: string): ParsedSummaryPayload | null {
   };
 }
 
+const KNOWN_DETAIL_STATUSES: ReadonlyArray<NonNullable<ClusterSummary['detailStatus']>> = [
+  'ready',
+  'stale',
+  'pending',
+  'failed',
+  'partial',
+];
+
+function normaliseDetailStatus(value?: string | null): ClusterSummary['detailStatus'] {
+  if (!value) {
+    return 'partial';
+  }
+  const trimmed = value.trim().toLowerCase();
+  return KNOWN_DETAIL_STATUSES.includes(trimmed as NonNullable<ClusterSummary['detailStatus']>)
+    ? (trimmed as ClusterSummary['detailStatus'])
+    : 'partial';
+}
+
 export function normaliseClusterSummary(cluster: ClusterSummary): ClusterSummary {
-  const detailStatus = (cluster.detailStatus ?? 'partial') as ClusterSummary['detailStatus'];
+  const rawStatus = typeof cluster.detailStatus === 'string' ? cluster.detailStatus.trim().toLowerCase() : undefined;
+  const detailStatus = normaliseDetailStatus(rawStatus);
   const isReadyStatus = detailStatus === 'ready' || detailStatus === 'stale';
   const payload = extractSummaryPayload(cluster.summaryLong);
   const legacySummary = (cluster as { summary?: string }).summary;

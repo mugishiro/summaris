@@ -319,6 +319,18 @@ variable "cloudflare_api_token_secret_name" {
   default     = ""
 }
 
+variable "enable_title_translation" {
+  description = "Enable Cloudflare-based headline translation in postprocess Lambda"
+  type        = bool
+  default     = true
+}
+
+variable "enable_summary_translation" {
+  description = "Enable Cloudflare-based summary translation in postprocess Lambda"
+  type        = bool
+  default     = true
+}
+
 variable "detail_ttl_seconds" {
   description = "Seconds to keep generated detailed summaries before refreshing"
   type        = number
