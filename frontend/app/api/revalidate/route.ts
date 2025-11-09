@@ -9,10 +9,23 @@ type RevalidatePayload = {
 
 const HEADER_TOKEN = 'x-revalidate-token';
 const DEFAULT_PATH = '/';
+const MAX_TARGETS = 20;
 
-function normaliseToArray<T extends string>(value: T | T[] | undefined): T[] {
-  if (!value) return [];
-  return Array.isArray(value) ? value : [value];
+function normaliseToArray(value: RevalidatePayload['paths'] | RevalidatePayload['tags']): string[] {
+  if (!value) {
+    return [];
+  }
+  if (Array.isArray(value)) {
+    return value
+      .filter((entry): entry is string => typeof entry === 'string')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed ? [trimmed] : [];
+  }
+  return [];
 }
 
 function getConfiguredSecret(): string | null {
@@ -45,14 +58,15 @@ function isAuthorised(req: NextRequest, body: RevalidatePayload): boolean {
   return false;
 }
 
-function prepareTargets(payload: RevalidatePayload) {
-  const paths = normaliseToArray(payload.paths);
-  const tags = normaliseToArray(payload.tags);
+function normalisePath(path: string): string {
+  return path.startsWith('/') ? path : `/${path}`;
+}
 
-  return {
-    paths: paths.map((path) => (path.startsWith('/') ? path : `/${path}`)),
-    tags,
-  };
+function prepareTargets(payload: RevalidatePayload) {
+  const paths = Array.from(new Set(normaliseToArray(payload.paths).map(normalisePath)));
+  const tags = Array.from(new Set(normaliseToArray(payload.tags)));
+
+  return { paths, tags };
 }
 
 export async function POST(req: NextRequest) {
@@ -79,6 +93,13 @@ export async function POST(req: NextRequest) {
     paths.push(DEFAULT_PATH);
   }
 
+  if (paths.length + tags.length > MAX_TARGETS) {
+    return NextResponse.json(
+      { message: `Too many revalidation targets (max ${MAX_TARGETS})` },
+      { status: 400 }
+    );
+  }
+
   const revalidatedPaths: string[] = [];
   const revalidatedTags: string[] = [];
 
@@ -91,7 +112,14 @@ export async function POST(req: NextRequest) {
       revalidateTag(tag);
       revalidatedTags.push(tag);
     }
+    console.info('Revalidated targets', {
+      paths: revalidatedPaths,
+      tags: revalidatedTags,
+      skippedPaths: paths.filter((path) => !revalidatedPaths.includes(path)),
+      skippedTags: tags.filter((tag) => !revalidatedTags.includes(tag)),
+    });
   } catch (error) {
+    console.error('Failed to trigger revalidation', error);
     return NextResponse.json(
       { message: 'Failed to trigger revalidation', error: error instanceof Error ? error.message : String(error) },
       { status: 500 },

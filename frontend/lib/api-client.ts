@@ -7,137 +7,16 @@ import {
   isDynamoConfigured,
 } from './dynamodb-clusters';
 import {
-  clusterDetailResponseSchema,
-  clusterListResponseSchema,
-  clusterSummarySchema,
-  type ClusterSummarySchema,
-} from './schemas';
-
-function ensureStraitsTimesLink(url?: string | null): string | undefined {
-  if (!url) {
-    return undefined;
-  }
-  try {
-    const parsed = new URL(url);
-    if (!parsed.hostname.toLowerCase().endsWith('straitstimes.com')) {
-      return url;
-    }
-    let updated = false;
-    if (!parsed.searchParams.has('utm_source')) {
-      parsed.searchParams.set('utm_source', 'rss');
-      updated = true;
-    }
-    if (!parsed.searchParams.has('utm_medium')) {
-      parsed.searchParams.set('utm_medium', 'referral');
-      updated = true;
-    }
-    return updated ? parsed.toString() : url;
-  } catch {
-    return url;
-  }
-}
-
-function mapSchemaCluster(cluster: ClusterSummarySchema): ClusterSummary {
-  const {
-    summaryLong,
-    headlineJa,
-    factCheckStatus,
-    languages,
-    detailStatus,
-    detailRequestedAt,
-    detailReadyAt,
-    detailExpiresAt,
-    detailFailedAt,
-    detailFailureReason,
-    sources,
-    createdAt,
-    updatedAt,
-    ...rest
-  } = cluster;
-
-  const normalisedSummaryLong =
-    typeof summaryLong === 'string' && summaryLong.trim().length > 0
-      ? summaryLong
-      : undefined;
-
-  const resolvedCreatedAt = createdAt ?? updatedAt ?? new Date().toISOString();
-  const resolvedUpdatedAt = updatedAt ?? resolvedCreatedAt;
-
-  return {
-    ...rest,
-    summaryLong: normalisedSummaryLong,
-    headlineJa: headlineJa ?? undefined,
-    factCheckStatus: factCheckStatus ?? undefined,
-    languages: languages ?? undefined,
-    detailStatus: detailStatus ?? undefined,
-    detailRequestedAt: detailRequestedAt ?? undefined,
-    detailReadyAt: detailReadyAt ?? undefined,
-    detailExpiresAt: detailExpiresAt ?? undefined,
-    detailFailedAt: detailFailedAt ?? undefined,
-    detailFailureReason: detailFailureReason ?? undefined,
-    createdAt: resolvedCreatedAt,
-    updatedAt: resolvedUpdatedAt,
-    sources: sources.map((source) => {
-      const resolvedArticleUrl =
-        ensureStraitsTimesLink(source.articleUrl ?? source.url ?? undefined) ??
-        undefined;
-      const resolvedUrl = resolvedArticleUrl ?? source.url ?? undefined;
-      return {
-        ...source,
-        url: resolvedUrl,
-        articleUrl: resolvedArticleUrl,
-        articleTitle: source.articleTitle ?? (typeof rest.headline === 'string' ? rest.headline : undefined),
-        siteUrl: source.siteUrl ?? undefined,
-      };
-    }),
-  };
-}
-
-export type DataSourceKind = 'api' | 'dynamodb';
-
-export type DataSourceFailure = {
-  source: DataSourceKind;
-  message: string;
-};
-
-export class ClusterDataError extends Error {
-  readonly failures: DataSourceFailure[];
-
-  constructor(message: string, failures: DataSourceFailure[]) {
-    super(message);
-    this.name = 'ClusterDataError';
-    this.failures = failures;
-  }
-}
-
-const API_BASE_URL =
-  process.env.NEWS_API_BASE_URL ??
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  '';
-
-const CLUSTERS_ENDPOINT =
-  process.env.NEWS_API_CLUSTERS_ENDPOINT ?? '/clusters';
-
-const DEFAULT_REVALIDATE_SECONDS = 300;
-
-function buildApiUrl(path: string): string {
-  if (!API_BASE_URL) {
-    throw new ClusterDataError('API base URL is not configured', [
-      { source: 'api', message: 'API base URL is not configured' },
-    ]);
-  }
-  const base = API_BASE_URL.endsWith('/')
-    ? API_BASE_URL
-    : `${API_BASE_URL}/`;
-  const trimmedPath = path.startsWith('/')
-    ? path.slice(1)
-    : path;
-  return `${base}${trimmedPath}`;
-}
-
-interface ClusterApiResponse {
-  clusters: ClusterSummary[];
-}
+  fetchClusterDetailFreshViaApi,
+  fetchClusterDetailViaApi,
+  fetchClustersViaApi,
+  isApiConfigured,
+} from './data-sources/api';
+import {
+  ClusterDataError,
+  type DataSourceFailure,
+  type DataSourceKind,
+} from './errors';
 
 function normaliseError(error: unknown): Error {
   if (error instanceof Error) {
@@ -155,167 +34,6 @@ function normaliseError(error: unknown): Error {
   }
 }
 
-function buildClusterDetailPath(id: string): string {
-  const trimmed =
-    CLUSTERS_ENDPOINT === '/'
-      ? 'clusters'
-      : CLUSTERS_ENDPOINT.replace(/^\//, '').replace(/\/+$/, '') || 'clusters';
-
-  return `${trimmed}/${encodeURIComponent(id)}`;
-}
-
-async function requestClusters(
-  init?: RequestInit & { next?: { revalidate?: number } }
-): Promise<ClusterSummary[]> {
-  if (!API_BASE_URL) {
-    throw new ClusterDataError('API base URL is not configured', [
-      { source: 'api', message: 'API base URL is not configured' },
-    ]);
-  }
-
-  const url = buildApiUrl(CLUSTERS_ENDPOINT);
-
-  const { headers: initHeaders, cache: initCache, ...otherInit } = init ?? {};
-  const requestInit: RequestInit = {
-    ...otherInit,
-    headers: {
-      Accept: 'application/json',
-      ...(initHeaders ?? {}),
-    },
-    cache: initCache ?? 'no-store',
-  };
-
-  const requestInitRecord = requestInit as Record<string, unknown>;
-  if ('next' in requestInitRecord) {
-    delete requestInitRecord.next;
-  }
-
-  const response = await fetch(url, requestInit);
-
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch clusters: ${response.status} ${response.statusText}`
-    );
-  }
-
-  const raw = await response.json();
-  const parsed = clusterListResponseSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new ClusterDataError('クラスタ一覧レスポンスの検証に失敗しました。', [
-      {
-        source: 'api',
-        message: parsed.error.message,
-      },
-    ]);
-  }
-
-  const payload = parsed.data;
-  const clusters = Array.isArray(payload)
-    ? payload
-    : payload.clusters ?? [];
-
-  return clusters.map(mapSchemaCluster);
-}
-
-interface ClusterApiDetailResponse {
-  cluster?: ClusterSummary | null;
-  data?: ClusterSummary | null;
-}
-
-async function requestClusterDetail(
-  id: string,
-  init?: RequestInit & { next?: { revalidate?: number } }
-): Promise<ClusterSummary | null> {
-  if (!API_BASE_URL) {
-    throw new ClusterDataError('API base URL is not configured', [
-      { source: 'api', message: 'API base URL is not configured' },
-    ]);
-  }
-
-  const detailPath = buildClusterDetailPath(id);
-  const url = buildApiUrl(detailPath);
-
-  const requestInit: RequestInit & { next?: { revalidate?: number } } = {
-    ...init,
-    headers: {
-      Accept: 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  };
-
-  const isNoStore = requestInit.cache === 'no-store';
-
-  if (!requestInit.next && !isNoStore) {
-    requestInit.next = { revalidate: DEFAULT_REVALIDATE_SECONDS };
-  }
-  if (!requestInit.cache) {
-    requestInit.cache = 'default';
-  } else if (isNoStore && requestInit.next) {
-    delete requestInit.next;
-  }
-
-  const response = await fetch(url, requestInit);
-
-  if (response.status === 404) {
-    return null;
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch cluster ${id}: ${response.status} ${response.statusText}`
-    );
-  }
-
-  if (response.status === 204) {
-    return null;
-  }
-
-  const raw = await response.json();
-  if (raw == null) {
-    return null;
-  }
-
-  const parsed = clusterDetailResponseSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new ClusterDataError('クラスタ詳細レスポンスの検証に失敗しました。', [
-      {
-        source: 'api',
-        message: parsed.error.message,
-      },
-    ]);
-  }
-
-  const payload = parsed.data;
-
-  if (Array.isArray((payload as ClusterApiResponse).clusters)) {
-    const list = (payload as ClusterApiResponse).clusters;
-    const match = list.find((cluster) => cluster.id === id);
-    return match ? mapSchemaCluster(clusterSummarySchema.parse(match)) : null;
-  }
-
-  if ((payload as ClusterApiDetailResponse).cluster !== undefined) {
-    const cluster = (payload as ClusterApiDetailResponse).cluster;
-    return cluster ? mapSchemaCluster(clusterSummarySchema.parse(cluster)) : null;
-  }
-
-  if ((payload as ClusterApiDetailResponse).data !== undefined) {
-    const cluster = (payload as ClusterApiDetailResponse).data;
-    return cluster ? mapSchemaCluster(clusterSummarySchema.parse(cluster)) : null;
-  }
-
-  if ((payload as ClusterSummarySchema).id) {
-    return mapSchemaCluster(clusterSummarySchema.parse(payload as ClusterSummarySchema));
-  }
-
-  return null;
-}
-
-async function requestClusterDetailFresh(id: string): Promise<ClusterSummary | null> {
-  return requestClusterDetail(id, {
-    cache: 'no-store',
-  });
-}
-
 type FetchResult = {
   data: ClusterSummary[] | null;
   failures: DataSourceFailure[];
@@ -327,15 +45,18 @@ async function fetchFromConfiguredSources(): Promise<FetchResult> {
   const dataSources: Array<{ source: DataSourceKind; loader: () => Promise<ClusterSummary[]> }> =
     [];
 
-  if (API_BASE_URL) {
-    dataSources.push({ source: 'api', loader: () => requestClusters() });
-  }
+  const dynamoAvailable = isDynamoConfigured();
+  const apiAvailable = isApiConfigured();
 
-  if (isDynamoConfigured()) {
+  if (dynamoAvailable) {
     dataSources.push({
       source: 'dynamodb',
       loader: () => fetchDynamoClusters(),
     });
+  }
+
+  if (apiAvailable) {
+    dataSources.push({ source: 'api', loader: () => fetchClustersViaApi() });
   }
 
   if (dataSources.length === 0) {
@@ -403,9 +124,9 @@ export async function fetchClusterSummariesStrict(): Promise<ClusterSummary[]> {
 export async function fetchClusterById(id: string): Promise<ClusterSummary | null> {
   const failures: DataSourceFailure[] = [];
 
-  if (API_BASE_URL) {
+  if (isApiConfigured()) {
     try {
-      const cluster = await requestClusterDetail(id);
+      const cluster = await fetchClusterDetailViaApi(id);
       if (cluster !== null) {
         return cluster;
       }
@@ -450,9 +171,9 @@ export async function fetchClusterById(id: string): Promise<ClusterSummary | nul
 export async function fetchClusterByIdFresh(id: string): Promise<ClusterSummary | null> {
   const failures: DataSourceFailure[] = [];
 
-  if (API_BASE_URL) {
+  if (isApiConfigured()) {
     try {
-      const cluster = await requestClusterDetailFresh(id);
+      const cluster = await fetchClusterDetailFreshViaApi(id);
       if (cluster !== null) {
         return cluster;
       }

@@ -1,11 +1,8 @@
 import { ClusterDirectory } from '../components/cluster-directory';
-import { fetchClusterSummaries } from '../lib/api-client';
-
-export const dynamic = 'force-dynamic';
-export const fetchCache = 'force-no-store';
+import { getCachedClusterSummaries } from '../lib/cached-clusters';
 
 export default async function HomePage() {
-  const clusters = await fetchClusterSummaries();
+  const clusters = await getCachedClusterSummaries();
 
   return <ClusterDirectory clusters={clusters} />;
 }
