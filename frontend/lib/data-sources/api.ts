@@ -133,10 +133,14 @@ export async function fetchClustersViaApi(
       Accept: 'application/json',
       ...(initHeaders ?? {}),
     },
-    cache: initCache ?? 'force-cache',
+    cache: initCache ?? 'default',
   };
-  if (requestInit.cache === 'no-store' && requestInit.next) {
-    delete requestInit.next;
+  if (requestInit.cache === 'no-store') {
+    if (requestInit.next) {
+      delete requestInit.next;
+    }
+  } else if (!requestInit.next) {
+    requestInit.next = { revalidate: DEFAULT_REVALIDATE_SECONDS };
   }
 
   const response = await fetch(url, requestInit);
