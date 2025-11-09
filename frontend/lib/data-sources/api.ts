@@ -1,5 +1,4 @@
 import type { ClusterSummary } from '../types';
-import { CLUSTER_SUMMARIES_TAG } from '../cache-tags';
 import {
   clusterDetailResponseSchema,
   clusterListResponseSchema,
@@ -134,24 +133,10 @@ export async function fetchClustersViaApi(
       Accept: 'application/json',
       ...(initHeaders ?? {}),
     },
-    cache: initCache ?? 'default',
+    cache: initCache ?? 'no-store',
   };
-  if (requestInit.cache === 'no-store') {
-    if (requestInit.next) {
-      delete requestInit.next;
-    }
-  } else {
-    const existingTags = Array.isArray(requestInit.next?.tags)
-      ? (requestInit.next!.tags as string[])
-      : [];
-    const mergedTags = existingTags.includes(CLUSTER_SUMMARIES_TAG)
-      ? existingTags
-      : [...existingTags, CLUSTER_SUMMARIES_TAG];
-    requestInit.next = {
-      ...(requestInit.next ?? {}),
-      revalidate: requestInit.next?.revalidate ?? DEFAULT_REVALIDATE_SECONDS,
-      tags: mergedTags,
-    };
+  if (requestInit.next) {
+    delete requestInit.next;
   }
 
   const response = await fetch(url, requestInit);

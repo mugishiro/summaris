@@ -1,15 +1,13 @@
-import { revalidateTag } from 'next/cache';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { fetchClusterByIdFresh } from '../../../../../lib/api-client';
-import { CACHE_TAG } from '../../../../../lib/cached-clusters';
 
 const API_BASE_URL =
   process.env.NEWS_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
 
 async function callContentApi(path: string, init: RequestInit) {
   if (!API_BASE_URL) {
-    return { status: 500, body: { message: 'Content API is not configured.' } };
+    return NextResponse.json({ message: 'Content API is not configured.' }, { status: 500 });
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -31,30 +29,18 @@ async function callContentApi(path: string, init: RequestInit) {
     }
   }
 
-  return { status: response.status, body };
+  return NextResponse.json(body, { status: response.status });
 }
 
 export async function POST(_request: NextRequest, { params }: { params: { id: string } }) {
   const path = `/clusters/${encodeURIComponent(params.id)}/summaries`;
-  const result = await callContentApi(path, { method: 'POST' });
-  if (result.status < 400) {
-    revalidateTag(CACHE_TAG);
-  }
-  return NextResponse.json(result.body, { status: result.status });
+  return callContentApi(path, { method: 'POST' });
 }
 
 export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
   const cluster = await fetchClusterByIdFresh(params.id);
   if (!cluster) {
     return NextResponse.json({ message: 'Cluster not found' }, { status: 404 });
-  }
-  const hasSummary =
-    typeof cluster.summaryLong === 'string' && cluster.summaryLong.trim().length > 0;
-  if (
-    hasSummary &&
-    (cluster.detailStatus === 'ready' || cluster.detailStatus === 'stale')
-  ) {
-    revalidateTag(CACHE_TAG);
   }
   return NextResponse.json(cluster, { status: 200 });
 }
