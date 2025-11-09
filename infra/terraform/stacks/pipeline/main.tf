@@ -13,41 +13,6 @@ terraform {
   }
 }
 
-moved {
-  from = aws_s3_bucket.raw_archive
-  to   = module.raw_archive_bucket.aws_s3_bucket.this
-}
-
-moved {
-  from = aws_s3_bucket_server_side_encryption_configuration.raw_archive
-  to   = module.raw_archive_bucket.aws_s3_bucket_server_side_encryption_configuration.this[0]
-}
-
-moved {
-  from = aws_s3_bucket_versioning.raw
-  to   = module.raw_archive_bucket.aws_s3_bucket_versioning.this[0]
-}
-
-moved {
-  from = aws_s3_bucket.ddb_export
-  to   = module.ddb_export_bucket.aws_s3_bucket.this
-}
-
-moved {
-  from = aws_s3_bucket_server_side_encryption_configuration.ddb_export
-  to   = module.ddb_export_bucket.aws_s3_bucket_server_side_encryption_configuration.this[0]
-}
-
-moved {
-  from = aws_s3_bucket_public_access_block.ddb_export
-  to   = module.ddb_export_bucket.aws_s3_bucket_public_access_block.this[0]
-}
-
-moved {
-  from = aws_s3_bucket_versioning.ddb_export
-  to   = module.ddb_export_bucket.aws_s3_bucket_versioning.this[0]
-}
-
 provider "aws" {
   region = var.aws_region
 }

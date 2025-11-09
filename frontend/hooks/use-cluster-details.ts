@@ -177,7 +177,8 @@ export function useClusterDetails(clusters: ClusterSummary[]) {
       const baseCluster =
         clusterDetailsRef.current[cluster.id] ?? normaliseClusterSummary(cluster);
       const currentStatus = (baseCluster.detailStatus ?? 'partial') as ClusterSummary['detailStatus'];
-      if (pollersRef.current.has(cluster.id) || currentStatus === 'pending') {
+      const isComplete = currentStatus === 'ready' || currentStatus === 'stale';
+      if (pollersRef.current.has(cluster.id) || currentStatus === 'pending' || isComplete) {
         return;
       }
 

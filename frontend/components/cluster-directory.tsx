@@ -362,18 +362,17 @@ const renderClusterList = useCallback(
             <section className="flex flex-col gap-6">
               {activeClusterDetailState && (
                 <>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        ensureDetailSummary(activeCluster)
-                      }
-                      disabled={activeClusterDetailState.isGenerating}
-                      className={`rounded-full px-4 py-2 text-sm transition ${
-                        activeClusterDetailState.isGenerating
-                          ? 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-                          : 'bg-sky-500 text-white hover:bg-sky-600'
-                      }`}
+                  {!activeClusterDetailState.hasSummary && (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => ensureDetailSummary(activeCluster)}
+                        disabled={activeClusterDetailState.isGenerating}
+                        className={`rounded-full px-4 py-2 text-sm transition ${
+                          activeClusterDetailState.isGenerating
+                            ? 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                            : 'bg-sky-500 text-white hover:bg-sky-600'
+                        }`}
                       >
                         <span className="flex items-center gap-2">
                           {activeClusterDetailState.isGenerating && (
@@ -383,17 +382,12 @@ const renderClusterList = useCallback(
                             />
                           )}
                           <span>
-                            {activeClusterDetailState.isGenerating
-                              ? '要約を生成中…'
-                              : activeClusterDetailState.detailStatus === 'stale'
-                                ? '要約を更新'
-                                : activeClusterDetailState.hasSummary
-                                  ? '要約を再生成'
-                                  : '要約を生成'}
+                            {activeClusterDetailState.isGenerating ? '要約を生成中…' : '要約を生成'}
                           </span>
                         </span>
                       </button>
-                  </div>
+                    </div>
+                  )}
                   <div className="flex flex-col gap-2">
                     {activeClusterDetailState.detailStatus === 'partial' && (
                       <p className="text-sm text-slate-600 dark:text-slate-400">
@@ -405,12 +399,6 @@ const renderClusterList = useCallback(
                         要約の生成に失敗しました。時間をおいて再試行してください。
                       </p>
                     )}
-                    {activeClusterDetailState.detailStatus === 'stale' &&
-                      !activeClusterDetailState.isGenerating && (
-                        <p className="text-sm text-slate-600 dark:text-slate-400">
-                          要約を再生成できます。上のボタンをクリックしてください。
-                        </p>
-                      )}
                     {activeClusterDetailState.hasSummary && (
                       <p className="whitespace-pre-wrap break-words leading-relaxed text-slate-800 dark:text-slate-200">
                         {activeClusterDetailState.summary}
