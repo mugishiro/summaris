@@ -270,44 +270,39 @@ def _coerce_int(value: Any) -> int | None:
         return None
 
 
-def put_summary(payload: Dict[str, Any]) -> None:
-    if not TABLE_NAME:
-        raise RuntimeError("SUMMARY_TABLE_NAME must be configured")
-    table = dynamodb.Table(TABLE_NAME)
-    headline_translated = _translate_headline(payload["item"]["title"])
+def _load_existing_item(table, source_id: str, item_id: str) -> Dict[str, Any]:
+    try:
+        response = table.get_item(
+            Key={
+                "pk": f"SOURCE#{source_id}",
+                "sk": f"ITEM#{item_id}",
+            }
+        )
+        return response.get("Item") or {}
+    except (ClientError, BotoCoreError) as exc:
+        LOGGER.debug("Failed to load existing summary item for merge: %s", exc)
+        return {}
+
+
+def _resolve_detail_context(payload: Dict[str, Any]) -> tuple[bool, int | None, str]:
     request_context = payload.get("request_context") or {}
     reason = (request_context.get("reason") or "").lower()
     requested_at = _coerce_int(request_context.get("requested_at"))
     has_detail_flag = bool(payload.get("generate_detailed_summary"))
     is_detail_reason = reason in {"detail", "on_demand_summary", "manual_detail"}
     is_detail_invocation = has_detail_flag or (is_detail_reason and requested_at is not None)
-    now = int(time.time())
+    return is_detail_invocation, requested_at, reason
 
-    existing_item: Dict[str, Any] = {}
-    try:
-        response = table.get_item(
-            Key={
-                "pk": f"SOURCE#{payload['source']['id']}",
-                "sk": f"ITEM#{payload['item']['id']}",
-            }
-        )
-        existing_item = response.get("Item") or {}
-    except (ClientError, BotoCoreError) as exc:
-        LOGGER.debug("Failed to load existing summary item for merge: %s", exc)
-    truncated_title = _truncate_title(payload["item"]["title"])
 
+def _prepare_summary_payload(
+    payload: Dict[str, Any],
+    existing_item: Dict[str, Any],
+    is_detail_invocation: bool,
+) -> tuple[Dict[str, Any], str]:
     existing_summaries = existing_item.get("summaries") or {}
     existing_summary_long = (existing_summaries.get("summary_long") or "").strip()
     existing_diff_points = existing_summaries.get("diff_points") or []
     existing_status = existing_item.get("detail_status")
-    existing_ready_at = _coerce_int(existing_item.get("detail_ready_at"))
-    existing_expires_at = _coerce_int(existing_item.get("detail_expires_at"))
-
-    processed_link = ensure_source_link(payload["source"]["id"], payload["item"]["link"])
-    if processed_link:
-        payload["item"]["link"] = processed_link
-
-    existing_created_at = _coerce_int(existing_item.get("created_at"))
 
     summaries_payload = dict(payload.get("summaries") or {})
     raw_summary_original = (summaries_payload.get("summary_long") or "").strip()
@@ -321,7 +316,6 @@ def put_summary(payload: Dict[str, Any]) -> None:
         elif not _contains_japanese(raw_summary_original):
             summaries_payload["summary_long"] = SUMMARY_FALLBACK_MESSAGE
 
-    payload["summaries"] = summaries_payload
     summaries_for_store: Dict[str, Any] = dict(summaries_payload)
 
     summary_long_value = (summaries_for_store.get("summary_long") or "").strip()
@@ -345,24 +339,44 @@ def put_summary(payload: Dict[str, Any]) -> None:
             summaries_for_store.pop("summary_long", None)
             summaries_for_store.pop("diff_points", None)
 
-    payload["summaries"] = dict(summaries_for_store)
+    return summaries_for_store, summary_long_value
 
-    item = {
+
+def _build_summary_item(
+    *,
+    payload: Dict[str, Any],
+    existing_item: Dict[str, Any],
+    summaries_for_store: Dict[str, Any],
+    detail_ready: bool,
+    requested_at: int | None,
+    processed_link: str | None,
+    headline_translated: str | None,
+    now: int,
+) -> Dict[str, Any]:
+    existing_status = existing_item.get("detail_status")
+    existing_ready_at = _coerce_int(existing_item.get("detail_ready_at"))
+    existing_expires_at = _coerce_int(existing_item.get("detail_expires_at"))
+    existing_created_at = _coerce_int(existing_item.get("created_at"))
+    truncated_title = _truncate_title(payload["item"]["title"])
+
+    item_created_at = existing_created_at if existing_created_at else now
+    item: Dict[str, Any] = {
         "pk": f"SOURCE#{payload['source']['id']}",
         "sk": f"ITEM#{payload['item']['id']}",
         "title": truncated_title,
         "link": processed_link or payload["item"]["link"],
         "summaries": summaries_for_store,
         "metrics": payload.get("metrics", {}),
+        "created_at": item_created_at,
+        "updated_at": now,
     }
-    item_created_at = existing_created_at if existing_created_at else now
-    item["created_at"] = item_created_at
-    item["updated_at"] = now
+
     published_at = payload["item"].get("published_at")
     if published_at:
         item["published_at"] = published_at
     if SUMMARY_TTL_SECONDS > 0:
         item["expires_at"] = now + SUMMARY_TTL_SECONDS
+
     if headline_translated:
         item["headline_translated"] = headline_translated
     else:
@@ -371,7 +385,6 @@ def put_summary(payload: Dict[str, Any]) -> None:
         if _contains_japanese(summary_brief):
             item["headline_translated"] = _truncate_title(summary_brief, 90)
 
-    detail_ready = is_detail_invocation and summary_long_value != ""
     if detail_ready:
         item["detail_status"] = "ready"
         item["detail_ready_at"] = now
@@ -389,6 +402,41 @@ def put_summary(payload: Dict[str, Any]) -> None:
     if requested_at is not None:
         item["detail_requested_at"] = requested_at
 
+    return item
+
+
+def put_summary(payload: Dict[str, Any]) -> None:
+    if not TABLE_NAME:
+        raise RuntimeError("SUMMARY_TABLE_NAME must be configured")
+    table = dynamodb.Table(TABLE_NAME)
+    source_id = payload["source"]["id"]
+    item_id = payload["item"]["id"]
+    existing_item = _load_existing_item(table, source_id, item_id)
+    is_detail_invocation, requested_at, _reason = _resolve_detail_context(payload)
+    now = int(time.time())
+
+    processed_link = ensure_source_link(payload["source"]["id"], payload["item"]["link"])
+    if processed_link:
+        payload["item"]["link"] = processed_link
+
+    summaries_for_store, summary_long_value = _prepare_summary_payload(
+        payload,
+        existing_item,
+        is_detail_invocation,
+    )
+    payload["summaries"] = dict(summaries_for_store)
+
+    detail_ready = is_detail_invocation and summary_long_value != ""
+    item = _build_summary_item(
+        payload=payload,
+        existing_item=existing_item,
+        summaries_for_store=summaries_for_store,
+        detail_ready=detail_ready,
+        requested_at=requested_at,
+        processed_link=processed_link,
+        headline_translated=_translate_headline(payload["item"]["title"]),
+        now=now,
+    )
     table.put_item(Item=_sanitize_for_dynamodb(item))
 
     if detail_ready:
