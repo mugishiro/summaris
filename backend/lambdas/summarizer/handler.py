@@ -18,8 +18,12 @@ from typing import Any, Dict, Optional
 import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
-import requests
-from requests.exceptions import RequestException
+
+from backend.lambdas.shared.cloudflare import (
+    CloudflareIntegrationError,
+    call_cloudflare_ai,
+    resolve_api_token,
+)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -105,8 +109,6 @@ bedrock = boto3.client(
 )
 secrets_manager = boto3.client("secretsmanager", region_name=REGION)
 
-_cloudflare_api_token_cache: str | None = None
-
 
 @dataclass
 class PromptConfig:
@@ -183,41 +185,15 @@ DIFF_KEYWORDS = (
 )
 
 
-def _resolve_cloudflare_api_token() -> str:
-    """Retrieve Cloudflare API token from env or Secrets Manager, caching the result."""
-    global _cloudflare_api_token_cache
-
-    if _cloudflare_api_token_cache:
-        return _cloudflare_api_token_cache
-
-    token = (CLOUDFLARE_API_TOKEN or "").strip()
-    if token:
-        _cloudflare_api_token_cache = token
-        return token
-
-    if CLOUDFLARE_API_TOKEN_SECRET_NAME:
-        try:
-            response = secrets_manager.get_secret_value(SecretId=CLOUDFLARE_API_TOKEN_SECRET_NAME)
-        except (ClientError, BotoCoreError) as exc:
-            raise ExternalServiceError(f"Failed to load Cloudflare API token secret: {exc}") from exc
-
-        secret_string = (response.get("SecretString") or "").strip()
-        if secret_string:
-            if secret_string.startswith("{"):
-                try:
-                    parsed = json.loads(secret_string)
-                except json.JSONDecodeError:
-                    parsed = {}
-                else:
-                    candidate = parsed.get("api_token") or parsed.get("token")
-                    if isinstance(candidate, str) and candidate.strip():
-                        secret_string = candidate.strip()
-
-        if secret_string:
-            _cloudflare_api_token_cache = secret_string
-            return secret_string
-
-    raise ExternalServiceError("Cloudflare API token must be configured via environment variable or Secrets Manager")
+def _get_cloudflare_api_token() -> str:
+    try:
+        return resolve_api_token(
+            inline_token=CLOUDFLARE_API_TOKEN,
+            secret_name=CLOUDFLARE_API_TOKEN_SECRET_NAME,
+            secrets_manager_client=secrets_manager,
+        )
+    except CloudflareIntegrationError as exc:
+        raise ExternalServiceError(str(exc)) from exc
 
 
 def _build_bedrock_request(prompt: PromptPayload) -> Dict[str, Any]:
@@ -520,9 +496,8 @@ def call_cloudflare(prompt: PromptPayload) -> Dict[str, Any]:
     if not CLOUDFLARE_ACCOUNT_ID:
         raise ExternalServiceError("Cloudflare account ID must be configured")
 
-    token = _resolve_cloudflare_api_token()
+    token = _get_cloudflare_api_token()
 
-    url = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/{CLOUDFLARE_MODEL_ID}"
     payload = {
         "messages": [
             {"role": "system", "content": prompt.system},
@@ -531,28 +506,15 @@ def call_cloudflare(prompt: PromptPayload) -> Dict[str, Any]:
     }
 
     try:
-        response = requests.post(
-            url,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=CLOUDFLARE_TIMEOUT_SECONDS,
+        return call_cloudflare_ai(
+            account_id=CLOUDFLARE_ACCOUNT_ID,
+            model_id=CLOUDFLARE_MODEL_ID,
+            token=token,
+            payload=payload,
+            timeout_seconds=CLOUDFLARE_TIMEOUT_SECONDS,
         )
-    except RequestException as exc:
-        raise ExternalServiceError(f"Cloudflare request failed: {exc}") from exc
-
-    if response.status_code >= 400:
-        raise ExternalServiceError(f"Cloudflare returned HTTP {response.status_code}: {response.text[:200]}")
-
-    try:
-        data = response.json()
-    except ValueError as exc:
-        raise ExternalServiceError(f"Cloudflare returned non-JSON payload: {exc}") from exc
-    if not data.get("success", True):
-        raise ExternalServiceError(f"Cloudflare API error: {data.get('errors')}")
-    return data
+    except CloudflareIntegrationError as exc:
+        raise ExternalServiceError(str(exc)) from exc
 
 
 def _parse_summary_text(text: str) -> Dict[str, Any]:

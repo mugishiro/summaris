@@ -54,16 +54,16 @@ provider "aws" {
 
 locals {
   project_prefix     = "${var.environment}-${var.project_name}"
-  collector_arn      = var.enable_lambda_deployment ? aws_lambda_function.collector[0].arn : var.collector_lambda_arn
-  preprocessor_arn   = var.enable_lambda_deployment ? aws_lambda_function.preprocessor[0].arn : var.preprocessor_lambda_arn
-  summarizer_arn     = var.enable_lambda_deployment ? aws_lambda_function.summarizer[0].arn : var.summarizer_lambda_arn
-  diff_validator_arn = var.enable_lambda_deployment ? aws_lambda_function.diff_validator[0].arn : var.diff_validator_lambda_arn
-  store_arn          = var.enable_lambda_deployment ? aws_lambda_function.postprocess[0].arn : var.postprocess_lambda_arn
-  checker_arn        = var.enable_lambda_deployment ? aws_lambda_function.checker[0].arn : var.checker_lambda_arn
-  dispatcher_arn     = var.enable_lambda_deployment ? aws_lambda_function.dispatcher[0].arn : var.dispatcher_lambda_arn
-  queue_worker_arn   = var.enable_lambda_deployment ? aws_lambda_function.queue_worker[0].arn : var.queue_worker_lambda_arn
-  content_api_arn    = var.enable_lambda_deployment ? aws_lambda_function.content_api[0].arn : var.content_api_lambda_arn
-  content_api_invoke = var.enable_lambda_deployment ? aws_lambda_function.content_api[0].invoke_arn : var.content_api_lambda_invoke_arn
+  collector_arn      = var.enable_lambda_deployment ? module.lambda_collector[0].arn : var.collector_lambda_arn
+  preprocessor_arn   = var.enable_lambda_deployment ? module.lambda_preprocessor[0].arn : var.preprocessor_lambda_arn
+  summarizer_arn     = var.enable_lambda_deployment ? module.lambda_summarizer[0].arn : var.summarizer_lambda_arn
+  diff_validator_arn = var.enable_lambda_deployment ? module.lambda_diff_validator[0].arn : var.diff_validator_lambda_arn
+  store_arn          = var.enable_lambda_deployment ? module.lambda_postprocess[0].arn : var.postprocess_lambda_arn
+  checker_arn        = var.enable_lambda_deployment ? module.lambda_checker[0].arn : var.checker_lambda_arn
+  dispatcher_arn     = var.enable_lambda_deployment ? module.lambda_dispatcher[0].arn : var.dispatcher_lambda_arn
+  queue_worker_arn   = var.enable_lambda_deployment ? module.lambda_queue_worker[0].arn : var.queue_worker_lambda_arn
+  content_api_arn    = var.enable_lambda_deployment ? module.lambda_content_api[0].arn : var.content_api_lambda_arn
+  content_api_invoke = var.enable_lambda_deployment ? module.lambda_content_api[0].invoke_arn : var.content_api_lambda_invoke_arn
   raw_archive_suffix = coalesce(var.raw_archive_suffix, substr(md5("${var.aws_account_id}-${var.environment}"), 0, 8))
   api_stage_name     = var.environment
   alarm_topic_name = (
@@ -400,218 +400,200 @@ data "aws_iam_policy_document" "lambda_inline" {
   }
 }
 
-resource "aws_lambda_function" "collector" {
-  count = var.enable_lambda_deployment ? 1 : 0
+module "lambda_collector" {
+  count  = var.enable_lambda_deployment ? 1 : 0
+  source = "../../modules/lambda_function"
 
   function_name    = "${local.project_prefix}-collector"
-  role             = aws_iam_role.lambda[0].arn
+  role_arn         = aws_iam_role.lambda[0].arn
   handler          = "handler.lambda_handler"
   runtime          = "python3.11"
   filename         = var.collector_package
   source_code_hash = var.collector_package != null ? filebase64sha256(var.collector_package) : null
   timeout          = 20
 
-  tags = merge(var.default_tags, {
-    Service = "collector"
-  })
+  tags = merge(var.default_tags, { Service = "collector" })
 }
 
-resource "aws_lambda_function" "preprocessor" {
-  count = var.enable_lambda_deployment ? 1 : 0
+module "lambda_preprocessor" {
+  count  = var.enable_lambda_deployment ? 1 : 0
+  source = "../../modules/lambda_function"
 
   function_name    = "${local.project_prefix}-preprocessor"
-  role             = aws_iam_role.lambda[0].arn
+  role_arn         = aws_iam_role.lambda[0].arn
   handler          = "handler.lambda_handler"
   runtime          = "python3.11"
   filename         = var.preprocessor_package
   source_code_hash = var.preprocessor_package != null ? filebase64sha256(var.preprocessor_package) : null
   timeout          = 240
 
-  environment {
-    variables = {
-      SIMHASH_BITS             = 64
-      LANGUAGE_SCORE_THRESHOLD = 0.5
-      DEFAULT_LANGUAGE         = "unknown"
-    }
+  environment = {
+    SIMHASH_BITS             = "64"
+    LANGUAGE_SCORE_THRESHOLD = "0.5"
+    DEFAULT_LANGUAGE         = "unknown"
   }
 
-  tags = merge(var.default_tags, {
-    Service = "preprocessor"
-  })
+  tags = merge(var.default_tags, { Service = "preprocessor" })
 }
 
-resource "aws_lambda_function" "summarizer" {
-  count            = var.enable_lambda_deployment ? 1 : 0
+module "lambda_summarizer" {
+  count  = var.enable_lambda_deployment ? 1 : 0
+  source = "../../modules/lambda_function"
+
   function_name    = "${local.project_prefix}-summarizer"
-  role             = aws_iam_role.lambda[0].arn
+  role_arn         = aws_iam_role.lambda[0].arn
   handler          = "handler.lambda_handler"
   runtime          = "python3.11"
   filename         = var.summarizer_package
   source_code_hash = var.summarizer_package != null ? filebase64sha256(var.summarizer_package) : null
   timeout          = 120
 
-  environment {
-    variables = {
-      BEDROCK_MODEL_ID                 = var.bedrock_model_id
-      PROMPT_SECRET_NAME               = var.prompt_secret_name
-      SUMMARIZER_PROVIDER              = var.summarizer_provider
-      CLOUDFLARE_ACCOUNT_ID            = var.cloudflare_account_id
-      CLOUDFLARE_MODEL_ID              = var.cloudflare_model_id
-      CLOUDFLARE_TIMEOUT_SECONDS       = tostring(var.cloudflare_timeout_seconds)
-      CLOUDFLARE_API_TOKEN_SECRET_NAME = var.cloudflare_api_token_secret_name
-    }
+  environment = {
+    BEDROCK_MODEL_ID                 = var.bedrock_model_id
+    PROMPT_SECRET_NAME               = var.prompt_secret_name
+    SUMMARIZER_PROVIDER              = var.summarizer_provider
+    CLOUDFLARE_ACCOUNT_ID            = var.cloudflare_account_id
+    CLOUDFLARE_MODEL_ID              = var.cloudflare_model_id
+    CLOUDFLARE_TIMEOUT_SECONDS       = tostring(var.cloudflare_timeout_seconds)
+    CLOUDFLARE_API_TOKEN_SECRET_NAME = var.cloudflare_api_token_secret_name
   }
 
-  tags = merge(var.default_tags, {
-    Service = "summarizer"
-  })
+  tags = merge(var.default_tags, { Service = "summarizer" })
 }
 
-resource "aws_lambda_function" "diff_validator" {
-  count            = var.enable_lambda_deployment ? 1 : 0
+module "lambda_diff_validator" {
+  count  = var.enable_lambda_deployment ? 1 : 0
+  source = "../../modules/lambda_function"
+
   function_name    = "${local.project_prefix}-diff-validator"
-  role             = aws_iam_role.lambda[0].arn
+  role_arn         = aws_iam_role.lambda[0].arn
   handler          = "handler.lambda_handler"
   runtime          = "python3.11"
   filename         = var.diff_validator_package
   source_code_hash = var.diff_validator_package != null ? filebase64sha256(var.diff_validator_package) : null
   timeout          = 15
 
-  tags = merge(var.default_tags, {
-    Service = "diff-validator"
-  })
+  tags = merge(var.default_tags, { Service = "diff-validator" })
 }
 
-resource "aws_lambda_function" "checker" {
-  count            = var.enable_lambda_deployment ? 1 : 0
+module "lambda_checker" {
+  count  = var.enable_lambda_deployment ? 1 : 0
+  source = "../../modules/lambda_function"
+
   function_name    = "${local.project_prefix}-checker"
-  role             = aws_iam_role.lambda[0].arn
+  role_arn         = aws_iam_role.lambda[0].arn
   handler          = "handler.lambda_handler"
   runtime          = "python3.11"
   filename         = var.checker_package
   source_code_hash = var.checker_package != null ? filebase64sha256(var.checker_package) : null
   timeout          = 15
 
-  environment {
-    variables = {
-      SOURCE_STATUS_TABLE       = module.source_status_table.name
-      SOURCE_STATUS_TTL_SECONDS = tostring(var.source_status_ttl_seconds)
-    }
+  environment = {
+    SOURCE_STATUS_TABLE       = module.source_status_table.name
+    SOURCE_STATUS_TTL_SECONDS = tostring(var.source_status_ttl_seconds)
   }
 
-  tags = merge(var.default_tags, {
-    Service = "checker"
-  })
+  tags = merge(var.default_tags, { Service = "checker" })
 }
 
-resource "aws_lambda_function" "dispatcher" {
-  count            = var.enable_lambda_deployment ? 1 : 0
+module "lambda_dispatcher" {
+  count  = var.enable_lambda_deployment ? 1 : 0
+  source = "../../modules/lambda_function"
+
   function_name    = "${local.project_prefix}-dispatcher"
-  role             = aws_iam_role.lambda[0].arn
+  role_arn         = aws_iam_role.lambda[0].arn
   handler          = "handler.lambda_handler"
   runtime          = "python3.11"
   filename         = var.dispatcher_package
   source_code_hash = var.dispatcher_package != null ? filebase64sha256(var.dispatcher_package) : null
   timeout          = 15
 
-  environment {
-    variables = {
-      RAW_QUEUE_URL      = module.raw_queue.queue_url
-      SUMMARY_TABLE_NAME = module.summary_table.name
-    }
+  environment = {
+    RAW_QUEUE_URL      = module.raw_queue.queue_url
+    SUMMARY_TABLE_NAME = module.summary_table.name
   }
 
-  tags = merge(var.default_tags, {
-    Service = "dispatcher"
-  })
+  tags = merge(var.default_tags, { Service = "dispatcher" })
 }
 
-resource "aws_lambda_function" "postprocess" {
-  count            = var.enable_lambda_deployment ? 1 : 0
+module "lambda_postprocess" {
+  count  = var.enable_lambda_deployment ? 1 : 0
+  source = "../../modules/lambda_function"
+
   function_name    = "${local.project_prefix}-store"
-  role             = aws_iam_role.lambda[0].arn
+  role_arn         = aws_iam_role.lambda[0].arn
   handler          = "handler.lambda_handler"
   runtime          = "python3.11"
   filename         = var.postprocess_package
   source_code_hash = var.postprocess_package != null ? filebase64sha256(var.postprocess_package) : null
   timeout          = 240
 
-  environment {
-    variables = {
-      SUMMARY_TABLE_NAME                   = module.summary_table.name
-      RAW_BUCKET_NAME                      = module.raw_archive_bucket.bucket_name
-      ENABLE_TITLE_TRANSLATION             = "true"
-      ENABLE_SUMMARY_TRANSLATION           = "true"
-      TRANSLATE_REGION                     = var.aws_region
-      DETAIL_TTL_SECONDS                   = tostring(var.detail_ttl_seconds)
-      SUMMARY_TTL_SECONDS                  = tostring(var.summary_ttl_seconds)
-      CLOUDFLARE_ACCOUNT_ID                = var.cloudflare_account_id
-      CLOUDFLARE_TRANSLATE_MODEL_ID        = var.cloudflare_translate_model_id
-      CLOUDFLARE_TRANSLATE_TIMEOUT_SECONDS = tostring(var.cloudflare_translate_timeout_seconds)
-      CLOUDFLARE_TRANSLATE_SOURCE_LANG     = var.cloudflare_translate_source_lang
-      CLOUDFLARE_API_TOKEN_SECRET_NAME     = var.cloudflare_api_token_secret_name
-    }
+  environment = {
+    SUMMARY_TABLE_NAME                   = module.summary_table.name
+    RAW_BUCKET_NAME                      = module.raw_archive_bucket.bucket_name
+    ENABLE_TITLE_TRANSLATION             = tostring(var.enable_title_translation)
+    ENABLE_SUMMARY_TRANSLATION           = tostring(var.enable_summary_translation)
+    TRANSLATE_REGION                     = var.aws_region
+    DETAIL_TTL_SECONDS                   = tostring(var.detail_ttl_seconds)
+    SUMMARY_TTL_SECONDS                  = tostring(var.summary_ttl_seconds)
+    CLOUDFLARE_ACCOUNT_ID                = var.cloudflare_account_id
+    CLOUDFLARE_TRANSLATE_MODEL_ID        = var.cloudflare_translate_model_id
+    CLOUDFLARE_TRANSLATE_TIMEOUT_SECONDS = tostring(var.cloudflare_translate_timeout_seconds)
+    CLOUDFLARE_TRANSLATE_SOURCE_LANG     = var.cloudflare_translate_source_lang
+    CLOUDFLARE_API_TOKEN_SECRET_NAME     = var.cloudflare_api_token_secret_name
   }
 
-  tags = merge(var.default_tags, {
-    Service = "postprocess"
-  })
+  tags = merge(var.default_tags, { Service = "postprocess" })
 }
 
-resource "aws_lambda_function" "queue_worker" {
-  count = var.enable_lambda_deployment ? 1 : 0
+module "lambda_queue_worker" {
+  count  = var.enable_lambda_deployment ? 1 : 0
+  source = "../../modules/lambda_function"
 
   function_name    = "${local.project_prefix}-queue-worker"
-  role             = aws_iam_role.lambda[0].arn
+  role_arn         = aws_iam_role.lambda[0].arn
   handler          = "handler.lambda_handler"
   runtime          = "python3.11"
   filename         = var.queue_worker_package
   source_code_hash = var.queue_worker_package != null ? filebase64sha256(var.queue_worker_package) : null
   timeout          = 240
 
-  environment {
-    variables = {
-      COLLECTOR_LAMBDA_ARN      = local.collector_arn
-      PREPROCESSOR_LAMBDA_ARN   = local.preprocessor_arn
-      SUMMARIZER_LAMBDA_ARN     = local.summarizer_arn
-      DIFF_VALIDATOR_LAMBDA_ARN = local.diff_validator_arn
-      STORE_LAMBDA_ARN          = local.store_arn
-    }
+  environment = {
+    COLLECTOR_LAMBDA_ARN      = local.collector_arn
+    PREPROCESSOR_LAMBDA_ARN   = local.preprocessor_arn
+    SUMMARIZER_LAMBDA_ARN     = local.summarizer_arn
+    DIFF_VALIDATOR_LAMBDA_ARN = local.diff_validator_arn
+    STORE_LAMBDA_ARN          = local.store_arn
   }
 
-  tags = merge(var.default_tags, {
-    Service = "queue-worker"
-  })
+  tags = merge(var.default_tags, { Service = "queue-worker" })
 }
 
-resource "aws_lambda_function" "content_api" {
-  count = var.enable_lambda_deployment ? 1 : 0
+module "lambda_content_api" {
+  count  = var.enable_lambda_deployment ? 1 : 0
+  source = "../../modules/lambda_function"
 
   function_name    = "${local.project_prefix}-content-api"
-  role             = aws_iam_role.lambda[0].arn
+  role_arn         = aws_iam_role.lambda[0].arn
   handler          = "handler.lambda_handler"
   runtime          = "python3.11"
   filename         = var.content_api_package
   source_code_hash = var.content_api_package != null ? filebase64sha256(var.content_api_package) : null
   timeout          = 10
 
-  environment {
-    variables = {
-      SUMMARY_TABLE_NAME             = module.summary_table.name
-      WORKER_LAMBDA_ARN              = local.queue_worker_arn
-      DETAIL_TTL_SECONDS             = tostring(var.detail_ttl_seconds)
-      DETAIL_PENDING_TIMEOUT_SECONDS = tostring(var.detail_pending_timeout_seconds)
-    }
+  environment = {
+    SUMMARY_TABLE_NAME             = module.summary_table.name
+    WORKER_LAMBDA_ARN              = local.queue_worker_arn
+    DETAIL_TTL_SECONDS             = tostring(var.detail_ttl_seconds)
+    DETAIL_PENDING_TIMEOUT_SECONDS = tostring(var.detail_pending_timeout_seconds)
   }
 
-  tags = merge(var.default_tags, {
-    Service = "content-api"
-  })
+  tags = merge(var.default_tags, { Service = "content-api" })
 }
 
 resource "aws_cloudwatch_log_group" "content_api_lambda" {
   count             = var.enable_lambda_deployment ? 1 : 0
-  name              = "/aws/lambda/${aws_lambda_function.content_api[0].function_name}"
+  name              = "/aws/lambda/${module.lambda_content_api[0].name}"
   retention_in_days = 14
 }
 
@@ -679,7 +661,7 @@ resource "aws_lambda_permission" "content_api_gateway" {
   count         = var.enable_lambda_deployment ? 1 : 0
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.content_api[0].function_name
+  function_name = module.lambda_content_api[0].name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.content.execution_arn}/*/*"
 }
@@ -785,14 +767,14 @@ resource "aws_cloudwatch_dashboard" "pipeline" {
   dashboard_name = "${local.project_prefix}-pipeline"
   dashboard_body = templatefile("${path.module}/templates/dashboard.json.tpl", {
     state_machine_name  = module.pipeline_state_machine.name
-    collector_name      = var.enable_lambda_deployment ? aws_lambda_function.collector[0].function_name : "collector"
-    preprocessor_name   = var.enable_lambda_deployment ? aws_lambda_function.preprocessor[0].function_name : "preprocessor"
-    summarizer_name     = var.enable_lambda_deployment ? aws_lambda_function.summarizer[0].function_name : "summarizer"
-    diff_validator_name = var.enable_lambda_deployment ? aws_lambda_function.diff_validator[0].function_name : "diff-validator"
-    postprocess_name    = var.enable_lambda_deployment ? aws_lambda_function.postprocess[0].function_name : "postprocess"
-    checker_name        = var.enable_lambda_deployment ? aws_lambda_function.checker[0].function_name : "checker"
-    dispatcher_name     = var.enable_lambda_deployment ? aws_lambda_function.dispatcher[0].function_name : "dispatcher"
-    queue_worker_name   = var.enable_lambda_deployment ? aws_lambda_function.queue_worker[0].function_name : "queue-worker"
+    collector_name      = var.enable_lambda_deployment ? module.lambda_collector[0].name : "collector"
+    preprocessor_name   = var.enable_lambda_deployment ? module.lambda_preprocessor[0].name : "preprocessor"
+    summarizer_name     = var.enable_lambda_deployment ? module.lambda_summarizer[0].name : "summarizer"
+    diff_validator_name = var.enable_lambda_deployment ? module.lambda_diff_validator[0].name : "diff-validator"
+    postprocess_name    = var.enable_lambda_deployment ? module.lambda_postprocess[0].name : "postprocess"
+    checker_name        = var.enable_lambda_deployment ? module.lambda_checker[0].name : "checker"
+    dispatcher_name     = var.enable_lambda_deployment ? module.lambda_dispatcher[0].name : "dispatcher"
+    queue_worker_name   = var.enable_lambda_deployment ? module.lambda_queue_worker[0].name : "queue-worker"
     summary_table_name  = module.summary_table.name
     raw_queue_name      = module.raw_queue.queue_name
     region              = var.aws_region
@@ -815,7 +797,7 @@ resource "aws_cloudwatch_metric_alarm" "summarizer_errors" {
   ok_actions          = [aws_sns_topic.alerts.arn]
 
   dimensions = {
-    FunctionName = aws_lambda_function.summarizer[0].function_name
+    FunctionName = module.lambda_summarizer[0].name
   }
 }
 
@@ -835,7 +817,7 @@ resource "aws_cloudwatch_metric_alarm" "postprocess_errors" {
   ok_actions          = [aws_sns_topic.alerts.arn]
 
   dimensions = {
-    FunctionName = aws_lambda_function.postprocess[0].function_name
+    FunctionName = module.lambda_postprocess[0].name
   }
 }
 
@@ -908,7 +890,7 @@ resource "aws_lambda_event_source_mapping" "queue_worker" {
   count = var.enable_lambda_deployment ? 1 : 0
 
   event_source_arn                   = module.raw_queue.queue_arn
-  function_name                      = aws_lambda_function.queue_worker[0].arn
+  function_name                      = local.queue_worker_arn
   batch_size                         = 1
   maximum_batching_window_in_seconds = 5
   enabled                            = true

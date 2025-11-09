@@ -10,6 +10,15 @@ type RevalidatePayload = {
 const HEADER_TOKEN = 'x-revalidate-token';
 const DEFAULT_PATH = '/';
 const MAX_TARGETS = 20;
+const RATE_LIMIT_MAX = 10;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+type RateBucket = {
+  count: number;
+  resetAt: number;
+};
+
+const rateLimitBuckets = new Map<string, RateBucket>();
 
 function normaliseToArray(value: RevalidatePayload['paths'] | RevalidatePayload['tags']): string[] {
   if (!value) {
@@ -69,6 +78,32 @@ function prepareTargets(payload: RevalidatePayload) {
   return { paths, tags };
 }
 
+function resolveClientKey(req: NextRequest) {
+  const forwarded = req.headers.get('x-forwarded-for');
+  if (forwarded) {
+    return forwarded.split(',')[0]?.trim() || forwarded;
+  }
+  const realIp = req.headers.get('x-real-ip');
+  if (realIp) {
+    return realIp.trim();
+  }
+  return req.ip ?? 'unknown';
+}
+
+function checkRateLimit(key: string): boolean {
+  const now = Date.now();
+  const bucket = rateLimitBuckets.get(key);
+  if (!bucket || bucket.resetAt <= now) {
+    rateLimitBuckets.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  if (bucket.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+  bucket.count += 1;
+  return true;
+}
+
 export async function POST(req: NextRequest) {
   let payload: RevalidatePayload = {};
 
@@ -85,6 +120,12 @@ export async function POST(req: NextRequest) {
 
   if (!isAuthorised(req, payload)) {
     return NextResponse.json({ message: 'Invalid revalidation token' }, { status: 401 });
+  }
+
+  const clientKey = resolveClientKey(req);
+  if (!checkRateLimit(clientKey)) {
+    console.warn('Revalidate rate-limit exceeded', { clientKey });
+    return NextResponse.json({ message: 'Too many revalidation requests' }, { status: 429 });
   }
 
   const { paths, tags } = prepareTargets(payload);

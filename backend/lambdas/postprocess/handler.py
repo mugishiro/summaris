@@ -17,9 +17,12 @@ from typing import Any, Dict
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
-import requests
-from requests.exceptions import RequestException
 
+from backend.lambdas.shared.cloudflare import (
+    CloudflareIntegrationError,
+    call_cloudflare_ai,
+    resolve_api_token,
+)
 from backend.lambdas.shared.url import ensure_source_link
 
 
@@ -44,52 +47,27 @@ SUMMARY_FALLBACK_MESSAGE = "本文から要約を生成できませんでした�
 dynamodb = boto3.resource("dynamodb")
 s3_client = boto3.client("s3")
 secrets_manager = boto3.client("secretsmanager", region_name=TRANSLATE_REGION or os.getenv("AWS_REGION"))
-_cloudflare_api_token_cache: str | None = None
 
 _JP_CHAR_PATTERN = re.compile(r"[\u3040-\u30ff\u4e00-\u9faf]")
 
 
-def _resolve_cloudflare_api_token() -> str | None:
-    """Resolve Cloudflare API token from env or Secrets Manager."""
-    global _cloudflare_api_token_cache
-
-    if _cloudflare_api_token_cache:
-        return _cloudflare_api_token_cache
-
-    token = (CLOUDFLARE_API_TOKEN or "").strip()
-    if token:
-        _cloudflare_api_token_cache = token
-        return token
-
-    if CLOUDFLARE_API_TOKEN_SECRET_NAME:
-        try:
-            response = secrets_manager.get_secret_value(SecretId=CLOUDFLARE_API_TOKEN_SECRET_NAME)
-        except (ClientError, BotoCoreError) as exc:
-            LOGGER.warning("Failed to load Cloudflare API token secret: %s", exc)
-            return None
-        secret_string = (response.get("SecretString") or "").strip()
-        if secret_string:
-            if secret_string.startswith("{"):
-                try:
-                    parsed = json.loads(secret_string)
-                except json.JSONDecodeError:
-                    parsed = {}
-                else:
-                    candidate = parsed.get("api_token") or parsed.get("token")
-                    if isinstance(candidate, str) and candidate.strip():
-                        secret_string = candidate.strip()
-        if secret_string:
-            _cloudflare_api_token_cache = secret_string
-            return secret_string
-
-    return None
+def _get_cloudflare_api_token() -> str | None:
+    try:
+        return resolve_api_token(
+            inline_token=CLOUDFLARE_API_TOKEN,
+            secret_name=CLOUDFLARE_API_TOKEN_SECRET_NAME,
+            secrets_manager_client=secrets_manager,
+        )
+    except CloudflareIntegrationError as exc:
+        LOGGER.warning("Failed to resolve Cloudflare token: %s", exc)
+        return None
 
 
 def _translate_with_cloudflare(text: str) -> str | None:
     if not CLOUDFLARE_ACCOUNT_ID:
         return None
 
-    token = _resolve_cloudflare_api_token()
+    token = _get_cloudflare_api_token()
     if not token:
         return None
 
@@ -102,33 +80,16 @@ def _translate_with_cloudflare(text: str) -> str | None:
     if source_lang and source_lang != "auto":
         payload["source_lang"] = CLOUDFLARE_TRANSLATE_SOURCE_LANG
 
-    url = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/{CLOUDFLARE_TRANSLATE_MODEL_ID}"
     try:
-        response = requests.post(
-            url,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=CLOUDFLARE_TRANSLATE_TIMEOUT_SECONDS,
+        data = call_cloudflare_ai(
+            account_id=CLOUDFLARE_ACCOUNT_ID,
+            model_id=CLOUDFLARE_TRANSLATE_MODEL_ID,
+            token=token,
+            payload=payload,
+            timeout_seconds=CLOUDFLARE_TRANSLATE_TIMEOUT_SECONDS,
         )
-    except RequestException as exc:
+    except CloudflareIntegrationError as exc:
         LOGGER.warning("Cloudflare translation request failed: %s", exc)
-        return None
-
-    if response.status_code >= 400:
-        LOGGER.warning("Cloudflare translation HTTP %s: %s", response.status_code, response.text[:200])
-        return None
-
-    try:
-        data = response.json()
-    except ValueError as exc:
-        LOGGER.warning("Cloudflare translation returned non-JSON payload: %s", exc)
-        return None
-
-    if not data.get("success", True):
-        LOGGER.warning("Cloudflare translation API error: %s", data.get("errors"))
         return None
 
     result = data.get("result")
