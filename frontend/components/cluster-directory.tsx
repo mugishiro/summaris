@@ -30,7 +30,7 @@ type SourceCategoryOption = {
 
 const SOURCE_CATEGORY_OPTIONS: SourceCategoryOption[] = [
   { key: 'all', label: 'すべて' },
-  { key: 'domestic', label: '国内メディア' },
+  { key: 'domestic', label: '国内' },
   { key: 'europe', label: '欧州' },
   { key: 'middle-east', label: '中東' },
   { key: 'asia', label: 'アジア' },
