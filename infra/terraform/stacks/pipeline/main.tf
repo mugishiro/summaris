@@ -13,6 +13,41 @@ terraform {
   }
 }
 
+moved {
+  from = aws_s3_bucket.raw_archive
+  to   = module.raw_archive_bucket.aws_s3_bucket.this
+}
+
+moved {
+  from = aws_s3_bucket_server_side_encryption_configuration.raw_archive
+  to   = module.raw_archive_bucket.aws_s3_bucket_server_side_encryption_configuration.this[0]
+}
+
+moved {
+  from = aws_s3_bucket_versioning.raw
+  to   = module.raw_archive_bucket.aws_s3_bucket_versioning.this[0]
+}
+
+moved {
+  from = aws_s3_bucket.ddb_export
+  to   = module.ddb_export_bucket.aws_s3_bucket.this
+}
+
+moved {
+  from = aws_s3_bucket_server_side_encryption_configuration.ddb_export
+  to   = module.ddb_export_bucket.aws_s3_bucket_server_side_encryption_configuration.this[0]
+}
+
+moved {
+  from = aws_s3_bucket_public_access_block.ddb_export
+  to   = module.ddb_export_bucket.aws_s3_bucket_public_access_block.this[0]
+}
+
+moved {
+  from = aws_s3_bucket_versioning.ddb_export
+  to   = module.ddb_export_bucket.aws_s3_bucket_versioning.this[0]
+}
+
 provider "aws" {
   region = var.aws_region
 }
@@ -31,7 +66,7 @@ locals {
   content_api_invoke = var.enable_lambda_deployment ? aws_lambda_function.content_api[0].invoke_arn : var.content_api_lambda_invoke_arn
   raw_archive_suffix = coalesce(var.raw_archive_suffix, substr(md5("${var.aws_account_id}-${var.environment}"), 0, 8))
   api_stage_name     = var.environment
-  alarm_topic_name   = (
+  alarm_topic_name = (
     var.alarm_sns_topic_name != null && trimspace(var.alarm_sns_topic_name) != ""
   ) ? trimspace(var.alarm_sns_topic_name) : "${local.project_prefix}-alerts"
   custom_domain_name = trimspace(var.frontend_custom_domain_name)
@@ -116,10 +151,15 @@ module "source_status_table" {
   })
 }
 
-resource "aws_s3_bucket" "raw_archive" {
-  bucket = "${local.project_prefix}-raw-${local.raw_archive_suffix}"
+module "raw_archive_bucket" {
+  source = "../../modules/s3_secure_bucket"
 
-  force_destroy = true
+  bucket_name          = "${local.project_prefix}-raw-${local.raw_archive_suffix}"
+  force_destroy        = true
+  enable_versioning    = true
+  enable_encryption    = true
+  enable_public_block  = false
+  encryption_algorithm = "AES256"
 
   tags = merge(var.default_tags, {
     Name        = "${local.project_prefix}-raw"
@@ -131,41 +171,19 @@ resource "random_id" "ddb_export_suffix" {
   byte_length = 4
 }
 
-resource "aws_s3_bucket" "ddb_export" {
-  bucket        = "${local.project_prefix}-ddb-export-${random_id.ddb_export_suffix.hex}"
-  force_destroy = false
+module "ddb_export_bucket" {
+  source = "../../modules/s3_secure_bucket"
+
+  bucket_name         = "${local.project_prefix}-ddb-export-${random_id.ddb_export_suffix.hex}"
+  force_destroy       = false
+  enable_versioning   = true
+  enable_encryption   = true
+  enable_public_block = true
 
   tags = merge(var.default_tags, {
     Name        = "${local.project_prefix}-ddb-export"
     Environment = var.environment
   })
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "ddb_export" {
-  bucket = aws_s3_bucket.ddb_export.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-resource "aws_s3_bucket_public_access_block" "ddb_export" {
-  bucket = aws_s3_bucket.ddb_export.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  restrict_public_buckets = true
-  ignore_public_acls      = true
-}
-
-resource "aws_s3_bucket_versioning" "ddb_export" {
-  bucket = aws_s3_bucket.ddb_export.id
-
-  versioning_configuration {
-    status = "Enabled"
-  }
 }
 
 data "aws_iam_policy_document" "ddb_export_assume" {
@@ -195,7 +213,7 @@ data "aws_iam_policy_document" "ddb_export_s3_access" {
       "s3:ListBucket",
       "s3:GetBucketLocation"
     ]
-    resources = [aws_s3_bucket.ddb_export.arn]
+    resources = [module.ddb_export_bucket.bucket_arn]
   }
 
   statement {
@@ -209,7 +227,7 @@ data "aws_iam_policy_document" "ddb_export_s3_access" {
       "s3:PutObject",
       "s3:PutObjectTagging"
     ]
-    resources = ["${aws_s3_bucket.ddb_export.arn}/*"]
+    resources = ["${module.ddb_export_bucket.bucket_arn}/*"]
   }
 }
 
@@ -219,27 +237,9 @@ resource "aws_iam_role_policy" "ddb_export" {
   policy = data.aws_iam_policy_document.ddb_export_s3_access.json
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "raw_archive" {
-  bucket = aws_s3_bucket.raw_archive.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-resource "aws_s3_bucket_versioning" "raw" {
-  bucket = aws_s3_bucket.raw_archive.id
-
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
 resource "aws_s3_bucket_lifecycle_configuration" "raw" {
   count  = var.enable_raw_archive_lifecycle ? 1 : 0
-  bucket = aws_s3_bucket.raw_archive.id
+  bucket = module.raw_archive_bucket.bucket_id
 
   rule {
     id     = "expire-objects"
@@ -342,7 +342,7 @@ data "aws_iam_policy_document" "lambda_inline" {
       "s3:PutObject"
     ]
     resources = [
-      "${aws_s3_bucket.raw_archive.arn}/*"
+      "${module.raw_archive_bucket.bucket_arn}/*"
     ]
   }
 
@@ -539,7 +539,7 @@ resource "aws_lambda_function" "postprocess" {
   environment {
     variables = {
       SUMMARY_TABLE_NAME                   = module.summary_table.name
-      RAW_BUCKET_NAME                      = aws_s3_bucket.raw_archive.bucket
+      RAW_BUCKET_NAME                      = module.raw_archive_bucket.bucket_name
       ENABLE_TITLE_TRANSLATION             = "true"
       ENABLE_SUMMARY_TRANSLATION           = "true"
       TRANSLATE_REGION                     = var.aws_region

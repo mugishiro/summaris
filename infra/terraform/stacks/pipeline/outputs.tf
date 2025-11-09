@@ -4,7 +4,7 @@ output "summary_table_name" {
 }
 
 output "raw_archive_bucket" {
-  value       = aws_s3_bucket.raw_archive.bucket
+  value       = module.raw_archive_bucket.bucket_name
   description = "S3 bucket used for raw article archival"
 }
 
@@ -14,7 +14,7 @@ output "source_status_table_name" {
 }
 
 output "dynamodb_export_bucket" {
-  value       = aws_s3_bucket.ddb_export.bucket
+  value       = module.ddb_export_bucket.bucket_name
   description = "S3 bucket used for DynamoDB exports"
 }
 
