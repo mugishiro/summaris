@@ -1,8 +1,8 @@
 import { unstable_cache } from 'next/cache';
 
 import { fetchClusterSummaries } from './api-client';
+import { CLUSTER_SUMMARIES_TAG } from './cache-tags';
 
-const CACHE_TAG = 'cluster-summaries';
 const CACHE_KEY = ['cluster-summaries'];
 
 export const getCachedClusterSummaries = unstable_cache(
@@ -10,8 +10,8 @@ export const getCachedClusterSummaries = unstable_cache(
   CACHE_KEY,
   {
     revalidate: 120,
-    tags: [CACHE_TAG],
+    tags: [CLUSTER_SUMMARIES_TAG],
   }
 );
 
-export { CACHE_TAG };
+export { CLUSTER_SUMMARIES_TAG as CACHE_TAG };
