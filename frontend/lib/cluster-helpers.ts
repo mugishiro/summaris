@@ -3,13 +3,11 @@ import type { ClusterSummary } from './types';
 const JSON_FENCE_RE = /```(?:json)?\s*({[\s\S]*?})\s*```/i;
 const QUOTED_VALUE_RE = (key: string) =>
   new RegExp(`"${key}"\\s*:\\s*"([^"\\\\]*(?:\\\\.[^"\\\\]*)*)"`, 'i');
-const ARRAY_VALUE_RE = (key: string) => new RegExp(`"${key}"\\s*:\\s*\\[(.*?)\\]`, 'is');
 const JP_TEXT_RE = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/;
 
 type ParsedSummaryPayload = {
   summary?: string;
   summaryLong?: string;
-  diffPoints?: string[];
 };
 
 export type SourceGroup = {
@@ -198,26 +196,6 @@ function extractQuotedValue(raw: string | undefined, key: string): string | unde
   return decodeJsonLikeString(match[1]);
 }
 
-function extractArrayValue(raw: string | undefined, key: string): string[] | undefined {
-  if (!raw) {
-    return undefined;
-  }
-  const match = ARRAY_VALUE_RE(key).exec(raw);
-  if (!match || match[1] == null) {
-    return undefined;
-  }
-  const content = match[1].trim();
-  if (!content) {
-    return [];
-  }
-  const items = content
-    .split(/,(?![^[]*\])/)
-    .map((item) =>
-      decodeJsonLikeString(item.replace(/^\s*["']?/, '').replace(/["']?\s*$/, ''))
-    );
-  return items.filter((item) => item.length > 0);
-}
-
 function firstNonEmpty(...candidates: Array<string | undefined>): string | undefined {
   for (const candidate of candidates) {
     if (candidate && candidate.trim().length > 0) {
@@ -238,24 +216,9 @@ function extractSummaryPayload(raw?: string): ParsedSummaryPayload | null {
         .replace(/^Here\s+is\s+the\s+summary[:：]?\s*/i, '')
         .trim();
 
-      const diffMatch = raw.match(/\*\*diff_points\*\*\s*:\s*([\s\S]+)/i);
-      let extractedDiffPoints: string[] | undefined;
-      if (diffMatch) {
-        const diffRemainder = diffMatch[1];
-        const diffNextIndex = diffRemainder.search(/\*\*[a-z_]+\*\*\s*:/i);
-        const diffSection = (diffNextIndex >= 0 ? diffRemainder.slice(0, diffNextIndex) : diffRemainder)
-          .split(/\r?\n+/)
-          .map((line) => line.replace(/^\s*[-*]\s*/, '').trim())
-          .filter((line) => line.length > 0);
-        if (diffSection.length > 0) {
-          extractedDiffPoints = diffSection;
-        }
-      }
-
       if (cleanedSummary) {
         return {
           summaryLong: cleanedSummary,
-          diffPoints: extractedDiffPoints,
         };
       }
     }
@@ -271,31 +234,19 @@ function extractSummaryPayload(raw?: string): ParsedSummaryPayload | null {
       .map((value) => value?.trim())
       .filter((value) => (value ?? '').length > 0);
 
-    const diffPointsRaw = (parsed.diff_points ?? parsed.diffPoints) as unknown;
-    const diffPoints = Array.isArray(diffPointsRaw)
-      ? diffPointsRaw.map((point) => String(point).trim()).filter((point) => point.length > 0)
-      : undefined;
-
     return {
       summaryLong: summaryCandidates[1] ?? summaryCandidates[0],
-      diffPoints: diffPoints && diffPoints.length > 0 ? diffPoints : undefined,
     };
   }
 
   const summaryLongFallback =
     extractQuotedValue(raw, 'summary_long') ?? extractQuotedValue(raw, 'summaryLong');
-
-  const diffPointsFallback =
-    extractArrayValue(raw, 'diff_points') ?? extractArrayValue(raw, 'diffPoints');
-
-  if (!summaryLongFallback && !diffPointsFallback) {
+  if (!summaryLongFallback) {
     return null;
   }
 
   return {
     summaryLong: summaryLongFallback ?? undefined,
-    diffPoints:
-      diffPointsFallback && diffPointsFallback.length > 0 ? diffPointsFallback : undefined,
   };
 }
 
@@ -371,13 +322,9 @@ export function normaliseClusterSummary(cluster: ClusterSummary): ClusterSummary
   const effectiveDetailStatus = fallbackFailure ? 'failed' : detailStatus;
   const effectiveSummary = fallbackFailure ? '' : resolvedSummaryLong;
 
-  const diffPoints =
-    payload?.diffPoints && payload.diffPoints.length > 0 ? payload.diffPoints : cluster.diffPoints;
-
   return {
     ...cluster,
     detailStatus: effectiveDetailStatus,
     summaryLong: effectiveSummary,
-    diffPoints,
   };
 }

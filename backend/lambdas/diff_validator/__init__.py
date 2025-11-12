@@ -1,1 +1,0 @@
-"""Diff validator Lambda package."""

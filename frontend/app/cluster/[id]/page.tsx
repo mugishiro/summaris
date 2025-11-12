@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { fetchClusterById } from '../../../lib/api-client';
-import { DiffHighlights } from '../../../components/diff-highlights';
 import { SourceCredits } from '../../../components/source-credits';
 
 export const dynamic = 'force-dynamic';
@@ -35,10 +34,6 @@ export default async function ClusterDetailPage({ params }: { params: { id: stri
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6 text-sm leading-relaxed text-slate-300">
         <h2 className="mb-2 text-lg font-semibold text-slate-100">要約</h2>
         <p>{cluster.summaryLong && cluster.summaryLong.trim().length > 0 ? cluster.summaryLong : '要約はまだ生成されていません。'}</p>
-      </section>
-      <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6 text-sm text-slate-300">
-        <h3 className="mb-3 text-base font-semibold text-slate-100">差分ポイント</h3>
-        <DiffHighlights points={cluster.diffPoints} />
       </section>
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6 text-sm text-slate-300">
         <h3 className="mb-3 text-base font-semibold text-slate-100">参照ソース</h3>

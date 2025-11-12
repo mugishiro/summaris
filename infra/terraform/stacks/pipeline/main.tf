@@ -22,7 +22,6 @@ locals {
   collector_arn      = var.enable_lambda_deployment ? module.lambda_collector[0].arn : var.collector_lambda_arn
   preprocessor_arn   = var.enable_lambda_deployment ? module.lambda_preprocessor[0].arn : var.preprocessor_lambda_arn
   summarizer_arn     = var.enable_lambda_deployment ? module.lambda_summarizer[0].arn : var.summarizer_lambda_arn
-  diff_validator_arn = var.enable_lambda_deployment ? module.lambda_diff_validator[0].arn : var.diff_validator_lambda_arn
   store_arn          = var.enable_lambda_deployment ? module.lambda_postprocess[0].arn : var.postprocess_lambda_arn
   checker_arn        = var.enable_lambda_deployment ? module.lambda_checker[0].arn : var.checker_lambda_arn
   dispatcher_arn     = var.enable_lambda_deployment ? module.lambda_dispatcher[0].arn : var.dispatcher_lambda_arn
@@ -358,7 +357,6 @@ data "aws_iam_policy_document" "lambda_inline" {
       local.collector_arn,
       local.preprocessor_arn,
       local.summarizer_arn,
-      local.diff_validator_arn,
       local.store_arn,
       local.queue_worker_arn
     ]
@@ -424,21 +422,6 @@ module "lambda_summarizer" {
   }
 
   tags = merge(var.default_tags, { Service = "summarizer" })
-}
-
-module "lambda_diff_validator" {
-  count  = var.enable_lambda_deployment ? 1 : 0
-  source = "../../modules/lambda_function"
-
-  function_name    = "${local.project_prefix}-diff-validator"
-  role_arn         = aws_iam_role.lambda[0].arn
-  handler          = "handler.lambda_handler"
-  runtime          = "python3.11"
-  filename         = var.diff_validator_package
-  source_code_hash = var.diff_validator_package != null ? filebase64sha256(var.diff_validator_package) : null
-  timeout          = 15
-
-  tags = merge(var.default_tags, { Service = "diff-validator" })
 }
 
 module "lambda_checker" {
@@ -527,7 +510,6 @@ module "lambda_queue_worker" {
     COLLECTOR_LAMBDA_ARN      = local.collector_arn
     PREPROCESSOR_LAMBDA_ARN   = local.preprocessor_arn
     SUMMARIZER_LAMBDA_ARN     = local.summarizer_arn
-    DIFF_VALIDATOR_LAMBDA_ARN = local.diff_validator_arn
     STORE_LAMBDA_ARN          = local.store_arn
   }
 
@@ -664,7 +646,6 @@ data "aws_iam_policy_document" "sfn_invoke_lambda" {
       local.collector_arn,
       local.preprocessor_arn,
       local.summarizer_arn,
-      local.diff_validator_arn,
       local.checker_arn,
       local.dispatcher_arn,
       local.store_arn,
@@ -735,7 +716,6 @@ resource "aws_cloudwatch_dashboard" "pipeline" {
     collector_name      = var.enable_lambda_deployment ? module.lambda_collector[0].name : "collector"
     preprocessor_name   = var.enable_lambda_deployment ? module.lambda_preprocessor[0].name : "preprocessor"
     summarizer_name     = var.enable_lambda_deployment ? module.lambda_summarizer[0].name : "summarizer"
-    diff_validator_name = var.enable_lambda_deployment ? module.lambda_diff_validator[0].name : "diff-validator"
     postprocess_name    = var.enable_lambda_deployment ? module.lambda_postprocess[0].name : "postprocess"
     checker_name        = var.enable_lambda_deployment ? module.lambda_checker[0].name : "checker"
     dispatcher_name     = var.enable_lambda_deployment ? module.lambda_dispatcher[0].name : "dispatcher"

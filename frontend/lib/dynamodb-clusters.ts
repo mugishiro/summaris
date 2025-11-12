@@ -75,7 +75,6 @@ function getClient(): DynamoDBDocumentClient {
 type RawSummaries = {
   summary?: string;
   summary_long?: string;
-  diff_points?: string[];
   [legacyKey: string]: unknown;
 };
 
@@ -121,17 +120,6 @@ function deriveSummaryLong(summaries: RawSummaries | undefined): string {
   return '';
 }
 
-function deriveDiffPoints(
-  summaries: RawSummaries | undefined
-): string[] {
-  if (!summaries?.diff_points) {
-    return [];
-  }
-  return summaries.diff_points
-    .map((point) => String(point).trim())
-    .filter((point) => point.length > 0);
-}
-
 function detectLanguages(summary: string | undefined): string[] | undefined {
   if (!summary) {
     return undefined;
@@ -152,8 +140,7 @@ function detectLanguages(summary: string | undefined): string[] | undefined {
 
 function deriveImportance(
   updatedAt: Date,
-  summaryLong: string,
-  diffPoints: string[]
+  summaryLong: string
 ): ClusterSummary['importance'] {
   const now = Date.now();
   const ageHours = (now - updatedAt.getTime()) / (1000 * 60 * 60);
@@ -170,7 +157,7 @@ function deriveImportance(
     return 'medium';
   }
 
-  return diffPoints.length >= 5 ? 'medium' : 'low';
+  return 'low';
 }
 
 function deriveTopics(sourceId: string): string[] {
@@ -254,7 +241,6 @@ function marshallItem(raw: RawSummaryItem): ClusterSummary | null {
   }
 
   const summaryLong = deriveSummaryLong(raw.summaries);
-  const diffPoints = deriveDiffPoints(raw.summaries);
   const metadata = getSourceMetadata(sourceId);
 
   const createdAtSeconds = raw.created_at ?? 0;
@@ -281,7 +267,6 @@ function marshallItem(raw: RawSummaryItem): ClusterSummary | null {
   const isReady = detailStatus === 'ready' || detailStatus === 'stale';
   const summaryLongReady = summaryLong.trim();
   const resolvedSummaryLong = isReady ? summaryLongReady : '';
-  const resolvedDiffPoints = isReady ? diffPoints : [];
 
   return {
     id: itemId,
@@ -297,10 +282,8 @@ function marshallItem(raw: RawSummaryItem): ClusterSummary | null {
     detailExpiresAt: formatEpochAsIso(raw.detail_expires_at),
     detailFailedAt: formatEpochAsIso(raw.detail_failed_at),
     detailFailureReason: cleanOptionalText(raw.detail_failure_reason),
-    importance: deriveImportance(updatedAt, resolvedSummaryLong, resolvedDiffPoints),
-    diffPoints: resolvedDiffPoints,
+    importance: deriveImportance(updatedAt, resolvedSummaryLong),
     topics: deriveTopics(sourceId),
-    factCheckStatus: resolvedDiffPoints.length > 0 ? 'pending' : undefined,
     languages: detectLanguages(resolvedSummaryLong),
     sources: [
       {

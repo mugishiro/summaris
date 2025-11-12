@@ -16,8 +16,6 @@ export const mockClusters: ClusterSummary[] = [
     detailStatus: 'ready',
     importance: 'high',
     topics: ['中東', '外交', '停戦'],
-    diffPoints: ['停戦条件の合意', '人道支援回廊の設置', '主要各国のコメント'],
-    factCheckStatus: 'verified',
     languages: ['日本語', '英語'],
     sources: [
       {
@@ -48,8 +46,6 @@ export const mockClusters: ClusterSummary[] = [
     detailStatus: 'partial',
     importance: 'medium',
     topics: ['国内', '農業', '経済'],
-    diffPoints: ['増産策の課題', '中山間地域の輸送コスト', '政府補助金の見直し案'],
-    factCheckStatus: 'pending',
     languages: ['日本語'],
     sources: [
       {
@@ -70,8 +66,6 @@ export const mockClusters: ClusterSummary[] = [
     detailStatus: 'ready',
     importance: 'low',
     topics: ['テクノロジー', 'AI'],
-    diffPoints: ['セーフティガイドラインの更新', '専門家の評価ポイント', 'リスク評価指標の追加案'],
-    factCheckStatus: 'failed',
     languages: ['英語'],
     sources: [
       {

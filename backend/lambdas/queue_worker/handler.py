@@ -3,8 +3,8 @@
 This function orchestrates the end-to-end processing for a single news item.
 It can be invoked directly (Pipeline Step Functions, Content API) or via SQS
 events emitted by the dispatcher. The worker sequentially invokes the existing
-functional Lambdas (collector → preprocessor → summarizer → diff validator →
-postprocess) and returns the final payload.
+functional Lambdas (collector → preprocessor → summarizer → postprocess) and
+returns the final payload.
 """
 from __future__ import annotations
 
@@ -32,7 +32,6 @@ STEP_DEFINITIONS: Tuple[Tuple[str, str], ...] = (
     ("collector", _env("COLLECTOR_LAMBDA_ARN")),
     ("preprocessor", _env("PREPROCESSOR_LAMBDA_ARN")),
     ("summarizer", _env("SUMMARIZER_LAMBDA_ARN")),
-    ("diff_validator", _env("DIFF_VALIDATOR_LAMBDA_ARN")),
     ("postprocess", _env("STORE_LAMBDA_ARN")),
 )
 

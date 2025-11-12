@@ -150,20 +150,6 @@ def _derive_summary_long(summaries: Dict[str, Any]) -> str:
     return ""
 
 
-def _derive_diff_points(summaries: Dict[str, Any]) -> List[str]:
-    if not summaries:
-        return []
-    points = summaries.get("diff_points")
-    if not isinstance(points, list):
-        return []
-    result = []
-    for point in points:
-        text = str(point).strip()
-        if text:
-            result.append(text)
-    return result
-
-
 def _clean_optional_str(value: Any) -> Optional[str]:
     if value is None:
         return None
@@ -187,7 +173,7 @@ def _detect_languages(summary: str) -> Optional[List[str]]:
     return languages or None
 
 
-def _derive_importance(updated_at: float, summary_long: str, diff_points: List[str]) -> str:
+def _derive_importance(updated_at: float, summary_long: str) -> str:
     now = time.time()
     age_hours = (now - updated_at) / 3600
 
@@ -199,10 +185,10 @@ def _derive_importance(updated_at: float, summary_long: str, diff_points: List[s
     if age_hours <= 24:
         return "medium"
 
-    return "medium" if len(diff_points) >= 5 else "low"
+    return "low"
 
 
-def _derive_topics(source_id: str, diff_points: List[str]) -> List[str]:
+def _derive_topics(source_id: str) -> List[str]:
     metadata = _get_source_metadata(source_id)
     return list(metadata.get("default_topics", []))
 
@@ -259,7 +245,6 @@ def _marshall_item(raw_item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
     summaries = raw_item.get("summaries") or {}
     summary_long = _derive_summary_long(summaries)
-    diff_points = _derive_diff_points(summaries)
 
     created_at_epoch = _to_epoch_seconds(raw_item.get("created_at"))
     updated_at_epoch = _to_epoch_seconds(raw_item.get("updated_at"))
@@ -296,13 +281,10 @@ def _marshall_item(raw_item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
     summary_long_ready = summary_long.strip()
     resolved_summary_long = ""
-    resolved_diff_points = []
     if is_ready:
         resolved_summary_long = _extract_japanese_lines(summary_long_ready)
-        resolved_diff_points = diff_points
     else:
         resolved_summary_long = ""
-        resolved_diff_points = []
 
     return {
         "id": item_id,
@@ -312,10 +294,8 @@ def _marshall_item(raw_item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "createdAt": created_at_iso,
         "updatedAt": updated_at_iso,
         "publishedAt": _clean_optional_str(raw_item.get("published_at")),
-        "importance": _derive_importance(updated_at_epoch, resolved_summary_long, resolved_diff_points),
-        "diffPoints": resolved_diff_points,
-        "topics": _derive_topics(source_id, diff_points),
-        "factCheckStatus": "pending" if resolved_diff_points else None,
+        "importance": _derive_importance(updated_at_epoch, resolved_summary_long),
+        "topics": _derive_topics(source_id),
         "languages": _detect_languages(resolved_summary_long),
         "detailStatus": detail_status,
         "detailRequestedAt": _format_epoch(raw_item.get("detail_requested_at")),

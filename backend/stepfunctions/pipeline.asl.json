@@ -1,105 +1,7 @@
 {
-  "Comment": "News summary pipeline with ingestion fan-out and reprocess support",
-  "StartAt": "RouteRequest",
+  "Comment": "News summary pipeline that checks sources and enqueues raw ingestion",
+  "StartAt": "CheckForUpdate",
   "States": {
-    "RouteRequest": {
-      "Type": "Choice",
-      "Choices": [
-        {
-          "Variable": "$.reprocess.items",
-          "IsPresent": true,
-          "Next": "ReprocessItems"
-        }
-      ],
-      "Default": "CheckForUpdate"
-    },
-    "ReprocessItems": {
-      "Type": "Map",
-      "ItemsPath": "$.reprocess.items",
-      "MaxConcurrency": 5,
-      "ResultPath": "$.reprocess.executions",
-      "ItemSelector": {
-        "source.$": "$$.Map.Item.Value.source",
-        "item.$": "$$.Map.Item.Value.item",
-        "raw.$": "$$.Map.Item.Value",
-        "default_source.$": "$.reprocess.default_source",
-        "requested_by.$": "$.reprocess.requested_by",
-        "requested_at.$": "$.reprocess.requested_at",
-        "request_context.$": "$.reprocess.request_context"
-      },
-      "Iterator": {
-        "StartAt": "MergeDefaults",
-        "States": {
-          "MergeDefaults": {
-            "Type": "Pass",
-            "Parameters": {
-              "source.$": "States.JsonMerge(States.StringToJson('{}'), $.default_source, $.source, true)",
-              "item.$": "States.JsonMerge(States.StringToJson('{}'), $.raw, $.item, true)",
-              "requested_by.$": "$.requested_by",
-              "requested_at.$": "$.requested_at",
-              "request_context.$": "$.request_context"
-            },
-            "ResultPath": "$",
-            "Next": "EnsureItemPresent"
-          },
-          "EnsureItemPresent": {
-            "Type": "Choice",
-            "Choices": [
-              {
-                "Variable": "$.item",
-                "IsPresent": true,
-                "Next": "EnsureSourcePresent"
-              }
-            ],
-            "Default": "MissingItem"
-          },
-          "EnsureSourcePresent": {
-            "Type": "Choice",
-            "Choices": [
-              {
-                "Variable": "$.source",
-                "IsPresent": true,
-                "Next": "StartWorkerExecution"
-              }
-            ],
-            "Default": "MissingSource"
-          },
-          "MissingItem": {
-            "Type": "Fail",
-            "Error": "ReprocessItemMissing",
-            "Cause": "Each reprocess entry must include an item payload."
-          },
-          "MissingSource": {
-            "Type": "Fail",
-            "Error": "ReprocessSourceMissing",
-            "Cause": "Each reprocess entry must include source metadata."
-          },
-          "StartWorkerExecution": {
-            "Type": "Task",
-            "Resource": "arn:aws:states:::lambda:invoke",
-            "Parameters": {
-              "FunctionName": "${WorkerLambdaArn}",
-              "Payload": {
-                "source.$": "$.source",
-                "item.$": "$.item",
-                "request_context": {
-                  "reason": "reprocess",
-                  "requested_by.$": "$.requested_by",
-                  "requested_at.$": "$.requested_at",
-                  "metadata.$": "$.request_context"
-                }
-              }
-            },
-            "ResultSelector": {
-              "payload.$": "$.Payload"
-            },
-            "ResultPath": "$.worker",
-            "End": true
-          }
-        }
-      },
-      "Next": "PipelineComplete"
-    },
     "CheckForUpdate": {
       "Type": "Task",
       "Resource": "${CheckerLambdaArn}",
@@ -112,133 +14,16 @@
         {
           "Variable": "$.should_fetch",
           "BooleanEquals": true,
-          "Next": "FanOutProcessing"
+          "Next": "EnqueueRaw"
         }
       ],
       "Default": "SkipPipeline"
     },
-    "FanOutProcessing": {
-      "Type": "Parallel",
-      "ResultPath": "$.fan_out",
-      "Branches": [
-        {
-          "StartAt": "EnqueueRaw",
-          "States": {
-            "EnqueueRaw": {
-              "Type": "Task",
-              "Resource": "${DispatcherLambdaArn}",
-              "TimeoutSeconds": 15,
-              "ResultPath": "$.enqueue",
-              "Next": "QueueComplete"
-            },
-            "QueueComplete": {
-              "Type": "Succeed"
-            }
-          }
-        },
-        {
-          "StartAt": "HasImmediateItems",
-          "States": {
-            "HasImmediateItems": {
-              "Type": "Choice",
-              "Choices": [
-                {
-                  "Variable": "$.items",
-                  "IsPresent": true,
-                  "Next": "ImmediateMap"
-                }
-              ],
-              "Default": "NoImmediateItems"
-            },
-            "ImmediateMap": {
-              "Type": "Map",
-              "ItemsPath": "$.items",
-              "MaxConcurrency": 5,
-              "ResultPath": "$.executions",
-              "ItemSelector": {
-                "source.$": "$.source",
-                "raw.$": "$$.Map.Item.Value",
-                "item.$": "$$.Map.Item.Value.item",
-                "request_context.$": "$.request_context"
-              },
-              "Iterator": {
-                "StartAt": "ImmediateMergeDefaults",
-                "States": {
-                  "ImmediateMergeDefaults": {
-                    "Type": "Pass",
-                    "Parameters": {
-                      "source.$": "States.JsonMerge(States.StringToJson('{}'), $.source, $.raw.source, true)",
-                      "item.$": "States.JsonMerge(States.StringToJson('{}'), $.raw, $.item, true)",
-                      "request_context.$": "$.request_context"
-                    },
-                    "ResultPath": "$",
-                    "Next": "ImmediateEnsureItem"
-                  },
-                  "ImmediateEnsureItem": {
-                    "Type": "Choice",
-                    "Choices": [
-                      {
-                        "Variable": "$.item",
-                        "IsPresent": true,
-                        "Next": "ImmediateEnsureSource"
-                      }
-                    ],
-                    "Default": "ImmediateMissingItem"
-                  },
-                  "ImmediateEnsureSource": {
-                    "Type": "Choice",
-                    "Choices": [
-                      {
-                        "Variable": "$.source",
-                        "IsPresent": true,
-                        "Next": "ImmediateStartWorker"
-                      }
-                    ],
-                    "Default": "ImmediateMissingSource"
-                  },
-                  "ImmediateMissingItem": {
-                    "Type": "Fail",
-                    "Error": "ImmediateItemMissing",
-                    "Cause": "Immediate processing requires an item payload."
-                  },
-                  "ImmediateMissingSource": {
-                    "Type": "Fail",
-                    "Error": "ImmediateSourceMissing",
-                    "Cause": "Immediate processing requires source metadata."
-                  },
-                  "ImmediateStartWorker": {
-                    "Type": "Task",
-                    "Resource": "arn:aws:states:::lambda:invoke",
-                    "Parameters": {
-                      "FunctionName": "${WorkerLambdaArn}",
-                      "Payload": {
-                        "source.$": "$.source",
-                        "item.$": "$.item",
-                        "request_context": {
-                          "reason": "ingest-immediate",
-                          "metadata.$": "$.request_context"
-                        }
-                      }
-                    },
-                    "ResultSelector": {
-                      "payload.$": "$.Payload"
-                    },
-                    "ResultPath": "$.worker",
-                    "End": true
-                  }
-                }
-              },
-              "Next": "ImmediateComplete"
-            },
-            "NoImmediateItems": {
-              "Type": "Succeed"
-            },
-            "ImmediateComplete": {
-              "Type": "Succeed"
-            }
-          }
-        }
-      ],
+    "EnqueueRaw": {
+      "Type": "Task",
+      "Resource": "${DispatcherLambdaArn}",
+      "TimeoutSeconds": 15,
+      "ResultPath": "$.enqueue",
       "Next": "PipelineComplete"
     },
     "SkipPipeline": {

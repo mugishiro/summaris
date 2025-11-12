@@ -9,7 +9,6 @@ import pytest
 os.environ.setdefault("COLLECTOR_LAMBDA_ARN", "arn:aws:lambda:collector")
 os.environ.setdefault("PREPROCESSOR_LAMBDA_ARN", "arn:aws:lambda:preprocessor")
 os.environ.setdefault("SUMMARIZER_LAMBDA_ARN", "arn:aws:lambda:summarizer")
-os.environ.setdefault("DIFF_VALIDATOR_LAMBDA_ARN", "arn:aws:lambda:diff-validator")
 os.environ.setdefault("STORE_LAMBDA_ARN", "arn:aws:lambda:postprocess")
 
 from backend.lambdas.queue_worker import handler as queue_worker  # noqa: E402  pylint: disable=wrong-import-position

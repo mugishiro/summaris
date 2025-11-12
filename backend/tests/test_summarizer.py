@@ -25,8 +25,7 @@ def test_parse_response_extracts_json_payload():
             {
                 "type": "text",
                 "text": "```json\n{\n"
-                '  "summary_long": "長い要約",\n'
-                '  "diff_points": ["差分"]\n'
+                '  "summary_long": "長い要約"\n'
                 "}\n```"
             }
         ]
@@ -34,7 +33,6 @@ def test_parse_response_extracts_json_payload():
 
     result = summarizer.parse_bedrock_response(raw)
     assert result["summary_long"] == "長い要約"
-    assert result["diff_points"] == ["差分"]
 
 
 def test_parse_cloudflare_response_extracts_json_payload():
@@ -42,15 +40,13 @@ def test_parse_cloudflare_response_extracts_json_payload():
         "success": True,
         "result": {
             "response": "```json\n{\n"
-            '  "summary_long": "長い要約",\n'
-            '  "diff_points": ["差分"]\n'
+            '  "summary_long": "長い要約"\n'
             "}\n```"
         },
     }
 
     result = summarizer.parse_cloudflare_response(raw)
     assert result["summary_long"] == "長い要約"
-    assert result["diff_points"] == ["差分"]
 
 
 def test_should_generate_detailed_requires_requested_at():
@@ -123,7 +119,6 @@ def test_handle_returns_summaries(monkeypatch: pytest.MonkeyPatch):
                     "text": json.dumps(
                         {
                             "summary_long": "長い",
-                            "diff_points": ["a"],
                         }
                     )
                 }
@@ -161,7 +156,6 @@ def test_handle_cloudflare_fallback(monkeypatch: pytest.MonkeyPatch):
                     "text": json.dumps(
                         {
                             "summary_long": "長い",
-                            "diff_points": ["a"],
                         }
                     )
                 }

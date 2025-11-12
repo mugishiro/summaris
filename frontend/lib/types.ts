@@ -16,8 +16,6 @@ export interface ClusterSummary {
   publishedAt?: string;
   topics: string[];
   importance: 'high' | 'medium' | 'low';
-  diffPoints: string[];
-  factCheckStatus?: 'verified' | 'pending' | 'failed';
   languages?: string[];
   detailStatus?: 'partial' | 'pending' | 'ready' | 'stale' | 'failed';
   detailRequestedAt?: string;

@@ -48,20 +48,6 @@
           "BackoffRate": 2.0
         }
       ],
-      "Next": "DiffValidate"
-    },
-    "DiffValidate": {
-      "Type": "Task",
-      "Resource": "${DiffValidatorLambdaArn}",
-      "TimeoutSeconds": 20,
-      "Retry": [
-        {
-          "ErrorEquals": ["States.TaskFailed"],
-          "IntervalSeconds": 2,
-          "MaxAttempts": 2,
-          "BackoffRate": 2.0
-        }
-      ],
       "Next": "StoreSummary"
     },
     "StoreSummary": {

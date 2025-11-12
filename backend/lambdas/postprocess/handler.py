@@ -262,7 +262,6 @@ def _prepare_summary_payload(
 ) -> tuple[Dict[str, Any], str]:
     existing_summaries = existing_item.get("summaries") or {}
     existing_summary_long = (existing_summaries.get("summary_long") or "").strip()
-    existing_diff_points = existing_summaries.get("diff_points") or []
     existing_status = existing_item.get("detail_status")
 
     summaries_payload = dict(payload.get("summaries") or {})
@@ -292,13 +291,10 @@ def _prepare_summary_payload(
     if not is_detail_invocation:
         if existing_status in {"ready", "stale"} and existing_summary_long:
             summaries_for_store["summary_long"] = existing_summary_long
-            if existing_diff_points:
-                summaries_for_store["diff_points"] = existing_diff_points
             summary_long_value = existing_summary_long
         else:
             summary_long_value = ""
             summaries_for_store.pop("summary_long", None)
-            summaries_for_store.pop("diff_points", None)
 
     return summaries_for_store, summary_long_value
 

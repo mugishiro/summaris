@@ -45,7 +45,6 @@ function mapSchemaCluster(cluster: ClusterSummarySchema): ClusterSummary {
   const {
     summaryLong,
     headlineJa,
-    factCheckStatus,
     languages,
     detailStatus,
     detailRequestedAt,
@@ -71,7 +70,6 @@ function mapSchemaCluster(cluster: ClusterSummarySchema): ClusterSummary {
     ...rest,
     summaryLong: normalisedSummaryLong,
     headlineJa: headlineJa ?? undefined,
-    factCheckStatus: factCheckStatus ?? undefined,
     languages: languages ?? undefined,
     detailStatus: detailStatus ?? undefined,
     detailRequestedAt: detailRequestedAt ?? undefined,

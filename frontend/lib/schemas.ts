@@ -1,10 +1,6 @@
 import { z } from 'zod';
 
 const importanceSchema = z.enum(['high', 'medium', 'low']);
-const factCheckStatusSchema = z
-  .enum(['verified', 'pending', 'failed'])
-  .nullish()
-  .transform((value) => (value ?? undefined));
 const detailStatusSchema = z
   .enum(['partial', 'pending', 'ready', 'stale', 'failed'])
   .nullish()
@@ -36,9 +32,7 @@ export const clusterSummarySchema = z.object({
   updatedAt: z.string().min(1),
   publishedAt: optionalStringSchema,
   importance: importanceSchema,
-  diffPoints: z.array(z.string()),
   topics: z.array(z.string()),
-  factCheckStatus: factCheckStatusSchema,
   languages: languageArraySchema,
   detailStatus: detailStatusSchema,
   detailRequestedAt: optionalStringSchema,

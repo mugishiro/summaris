@@ -56,12 +56,6 @@ variable "summarizer_package" {
   default     = null
 }
 
-variable "diff_validator_package" {
-  description = "Path to diff validator Lambda zip (required if enable_lambda_deployment)"
-  type        = string
-  default     = null
-}
-
 variable "postprocess_package" {
   description = "Path to postprocess Lambda zip (required if enable_lambda_deployment)"
   type        = string
@@ -143,17 +137,6 @@ variable "summarizer_lambda_arn" {
   validation {
     condition     = var.enable_lambda_deployment || var.summarizer_lambda_arn != ""
     error_message = "summarizer_lambda_arn must be set when enable_lambda_deployment is false."
-  }
-}
-
-variable "diff_validator_lambda_arn" {
-  description = "Existing diff validator Lambda ARN (used when enable_lambda_deployment=false)"
-  type        = string
-  default     = ""
-
-  validation {
-    condition     = var.enable_lambda_deployment || var.diff_validator_lambda_arn != ""
-    error_message = "diff_validator_lambda_arn must be set when enable_lambda_deployment is false."
   }
 }
 

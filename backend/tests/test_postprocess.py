@@ -44,7 +44,6 @@ def _build_payload(**overrides: Any) -> Dict[str, Any]:
         },
         "summaries": {
             "summary_long": "長い要約のテキスト",
-            "diff_points": ["ポイント1", "ポイント2"],
         },
         "metrics": {},
         "request_context": {},
@@ -91,7 +90,6 @@ def test_put_summary_translates_non_japanese_summary(monkeypatch: pytest.MonkeyP
     payload = _build_payload(
         summaries={
             "summary_long": "This is an English summary.",
-            "diff_points": ["Point A", "Point B"],
         },
         request_context={"reason": "detail", "requested_at": "1712345678"},
         generate_detailed_summary=True,
@@ -118,7 +116,7 @@ def test_ingest_preserves_existing_ready_summary() -> None:
         {
             "pk": "SOURCE#source-1",
             "sk": "ITEM#item-1",
-            "summaries": {"summary_long": "既存の要約", "diff_points": ["既存ポイント"]},
+            "summaries": {"summary_long": "既存の要約"},
             "detail_status": "ready",
             "detail_ready_at": 1700000000,
         }
@@ -131,14 +129,12 @@ def test_ingest_preserves_existing_ready_summary() -> None:
     stored = table.items[("SOURCE#source-1", "ITEM#item-1")]
     assert stored["detail_status"] == "ready"
     assert stored["summaries"]["summary_long"] == "既存の要約"
-    assert stored["summaries"]["diff_points"] == ["既存ポイント"]
 
 
 def test_put_summary_strips_english_segments() -> None:
     payload = _build_payload(
         summaries={
             "summary_long": "This is an English sentence. 日本語の説明です。",
-            "diff_points": [],
         },
         request_context={"reason": "detail", "requested_at": "1712345678"},
         generate_detailed_summary=True,
@@ -154,7 +150,6 @@ def test_put_summary_sets_fallback_when_no_japanese_available() -> None:
     payload = _build_payload(
         summaries={
             "summary_long": "Completely English summary without Japanese.",
-            "diff_points": ["Point A"],
         },
         request_context={"reason": "detail", "requested_at": "1712345678"},
         generate_detailed_summary=True,

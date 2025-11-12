@@ -14,10 +14,8 @@ describe('cluster schemas', () => {
           summaryLong: 'Longer sample summary for verification',
           updatedAt: '2025-10-17T00:00:00Z',
           importance: 'high',
-          diffPoints: ['point'],
           topics: ['topic'],
           detailStatus: 'ready',
-          factCheckStatus: 'pending',
           languages: ['日本語'],
           sources: [
             {
@@ -55,7 +53,6 @@ describe('cluster schemas', () => {
         summary: 'Detail summary',
         updatedAt: '2025-10-17T00:00:00Z',
         importance: 'medium',
-        diffPoints: [],
         topics: [],
         sources: [
           {

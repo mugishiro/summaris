@@ -94,9 +94,8 @@ CLOUDFLARE_TIMEOUT_SECONDS = _get_float_env("CLOUDFLARE_TIMEOUT_SECONDS", 40.0)
 
 GUARDRAIL_PROMPT = (
     "出力する JSON は次の仕様に厳密に従ってください:\n"
-    "- 出力は {\"summary_long\":\"...\",\"diff_points\":[]} の形式の JSON オブジェクト 1 つだけとし、余計な文字列や説明を付けない。\n"
+    "- 出力は {\"summary_long\":\"...\"} の形式の JSON オブジェクト 1 つだけとし、余計な文字列や説明を付けない。\n"
     "- summary_long (500文字以内) は日本語で、入力本文に記載された事実のみを要約する。\n"
-    "- diff_points は本文で確認できる固有名詞・数値などの事実を箇条書きで列挙する。存在しない場合は空配列 []。\n"
     "- 本文と無関係な出来事・他記事の情報・推測は一切含めない。本文で確認できない場合は summary_long に"
     "「本文から要約を生成できませんでした」と記載し、他フィールドも最小限にする。\n"
     "- JSON 以外のテキストやコードブロックは出力しない。"
@@ -177,12 +176,6 @@ SUMMARY_KEYWORDS = (
     "summary (500",
     "summary (120",
 )
-DIFF_KEYWORDS = (
-    "diff_points",
-    "diff points",
-    "differences",
-    "diffs",
-)
 
 
 def _get_cloudflare_api_token() -> str:
@@ -257,7 +250,7 @@ def _parse_structured_sections(text: str) -> Dict[str, str]:
         if plain_match and not line.strip().startswith(("-", "*", "・", "•", "●", "◎", "◦")):
             header = plain_match.group(1).strip().lower()
             remainder = plain_match.group(2).strip()
-            if any(keyword in header for keyword in SUMMARY_KEYWORDS + DIFF_KEYWORDS):
+            if any(keyword in header for keyword in SUMMARY_KEYWORDS):
                 _flush()
                 current_key = header
                 buffer = [remainder] if remainder else []
@@ -312,41 +305,6 @@ def _clean_summary_text(value: str) -> str:
     return text.strip()
 
 
-def _parse_diff_points(value: str | list[Any]) -> list[str]:
-    if isinstance(value, list):
-        return [str(item).strip() for item in value if str(item).strip()]
-
-    text = str(value or "").strip()
-    if not text:
-        return []
-
-    if text.startswith("["):
-        try:
-            parsed_json = json.loads(text)
-            if isinstance(parsed_json, list):
-                return [str(item).strip() for item in parsed_json if str(item).strip()]
-        except json.JSONDecodeError:
-            pass
-
-    sections = _parse_structured_sections(text)
-    for key in sections:
-        lowered = key.lower()
-        if any(keyword in lowered for keyword in DIFF_KEYWORDS):
-            text = sections[key]
-            break
-
-    points: list[str] = []
-    for raw_line in text.splitlines():
-        stripped = raw_line.strip()
-        if not stripped:
-            continue
-        had_prefix = bool(BULLET_PREFIX_RE.match(stripped))
-        cleaned = BULLET_PREFIX_RE.sub("", stripped).strip()
-        if cleaned and (had_prefix or any(keyword in stripped.lower() for keyword in DIFF_KEYWORDS)):
-            points.append(cleaned)
-    return points
-
-
 def _normalise_schema(data: Dict[str, Any]) -> Dict[str, Any]:
     """Ensure mandatory keys exist and have proper types."""
     summary_long_candidates = [
@@ -366,15 +324,8 @@ def _normalise_schema(data: Dict[str, Any]) -> Dict[str, Any]:
     summary_cleaned = _clean_summary_text(summary_raw)
     summary_long = _extract_japanese_lines(summary_cleaned)
 
-    diff_points = data.get("diff_points", [])
-    if isinstance(diff_points, (str, list)):
-        cleaned_diff_points = _parse_diff_points(diff_points)
-    else:
-        raise RuntimeError("diff_points must be a string or a list of strings")
-
     return {
         "summary_long": summary_long,
-        "diff_points": cleaned_diff_points,
     }
 
 
@@ -417,7 +368,6 @@ def _has_article_overlap(article: str, summary: str) -> bool:
 def _fallback_summary() -> Dict[str, Any]:
     return {
         "summary_long": "",
-        "diff_points": [],
     }
 
 
@@ -536,9 +486,6 @@ def _parse_summary_text(text: str) -> Dict[str, Any]:
     if not summary_section:
         summary_section = text[:600]
     fallback["summary_long"] = _extract_japanese_lines(summary_section)
-    diff_candidates = _parse_diff_points(text)
-    if diff_candidates:
-        fallback["diff_points"] = diff_candidates
     return fallback
 
 
@@ -634,7 +581,6 @@ def _generate_lightweight_summary(event: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "summary_long": cleaned_long,
-        "diff_points": [],
     }
 
 
