@@ -17,34 +17,38 @@
 EventBridge Scheduler
         │
         ▼
-Collector Lambda ──► Dispatcher Lambda
-        │                     │
-        └──────────────┬──────┘
-                       ▼
-                 SQS Raw Queue
-                       │
-                       ▼
-                Queue Worker Lambda
-         ┌─────────────┼─────────────┐
-         ▼             ▼             ▼
-    collector     preprocessor    summarizer
-         │                           │
-         └──────────────┬────────────┘
-                        ▼
-                   postprocess
-                        │
-            ┌───────────┴───────────┐
-            ▼                       ▼
-     DynamoDB summary table     S3 raw archive
-                        │
-                        ▼
-              Content API Lambda
-                        │
-                        ▼
-             API Gateway HTTP API
-                        │
-                        ▼
-                 Next.js Frontend
+Collector Lambda
+        │
+        ▼
+Dispatcher Lambda
+        │
+        ▼
+SQS Raw Queue
+        │ (event source)
+        ▼
+Queue Worker Lambda
+        │
+        ├─ invokes Collector Lambda（本文取得の再実行）
+        │
+        ├─ invokes Preprocessor Lambda（ノイズ除去）
+        │
+        ├─ invokes Summarizer Lambda（LLM要約）
+        │
+        └─ invokes Postprocess Lambda（保存・翻訳）
+        │
+        ▼
+┌───────────────┴────────────────┐
+▼                               ▼
+DynamoDB summary table     S3 raw archive
+        │
+        ▼
+Content API Lambda
+        │
+        ▼
+API Gateway HTTP API
+        │
+        ▼
+Next.js Frontend
 ```
 - EventBridge がソース別に Collector Lambda を起動し RSS の差分を見て新着記事かどうか判定
 - Dispatcher Lambda が新着記事を SQS Raw Queue へ投入
