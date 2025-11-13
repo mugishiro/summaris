@@ -26,10 +26,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                   <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
                     海外ニュースまとめ
                   </h1>
-                  <p
-                    className="max-w-3xl text-sm leading-relaxed text-slate-600 dark:text-slate-400"
-                    style={{ textWrap: 'balance' }}
-                  >
+                  <p className="max-w-3xl text-sm leading-relaxed text-slate-600 dark:text-slate-400 sm:whitespace-nowrap">
                     主要海外ニュースサイトから最新記事を集めています。気になる記事は「要約を生成」ボタンで日本語の要約をリクエストできます。
                   </p>
                 </div>
