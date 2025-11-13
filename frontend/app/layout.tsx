@@ -6,7 +6,7 @@ import { ThemeToggleButton } from '../components/theme-toggle';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'news summaris',
+  title: '海外ニュースまとめ',
   description: '主要海外ニュースサイトから最新記事を集め、ワンクリックで要約できるダッシュボード',
   icons: {
     icon: '/icon.svg',
@@ -21,16 +21,19 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <ThemeProvider>
           <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-6 py-10 sm:px-10">
             <header className="flex flex-col gap-4 border-b border-slate-200 pb-6 dark:border-slate-800">
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="space-y-2">
                   <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
                     海外ニュースまとめ
                   </h1>
-                  <p className="max-w-xl text-sm text-slate-600 dark:text-slate-400">
-                    主要海外ニュースサイトから最新記事を集めています。気になる記事は「要約を生成」ボタンで日本語の要約をリクエストできます。
+                  <p className="max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                    <span className="block sm:inline">主要海外ニュースサイトから最新記事を集めています。</span>
+                    <span className="block sm:inline sm:ml-1">気になる記事は「要約を生成」ボタンで日本語の要約をリクエストできます。</span>
                   </p>
                 </div>
-                <ThemeToggleButton />
+                <div className="sm:self-start">
+                  <ThemeToggleButton />
+                </div>
               </div>
             </header>
             <main className="flex-1">{children}</main>
