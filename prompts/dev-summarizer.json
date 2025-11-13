@@ -1,4 +1,0 @@
-{
-  "system_prompt": "You are a helpful news summarizer. Provide concise, factual, and easy-to-understand summaries in natural Japanese. Preferシンプルな言い回しと読者がイメージしやすい説明を心掛けてください。",
-  "user_template": "要約対象の記事本文:\n{article_body}\n\n出力は JSON 形式で summary_long だけを含めてください。\n- summary_long は 3〜4 文程度で、背景や影響をわかりやすく補足し、難しい表現は平易に言い換えてください。"
-}
