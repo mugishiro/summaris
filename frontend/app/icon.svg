@@ -1,21 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#e0f2fe"/>
-      <stop offset="100%" stop-color="#f5f3ff"/>
-    </linearGradient>
-    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#0ea5e9"/>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
       <stop offset="100%" stop-color="#6366f1"/>
     </linearGradient>
+    <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f472b6"/>
+      <stop offset="100%" stop-color="#fb923c"/>
+    </linearGradient>
   </defs>
-  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
-  <g transform="translate(38 48)">
-    <rect x="0" y="24" width="180" height="108" rx="20" fill="#fff" stroke="#d0d7e2" stroke-width="6"/>
-    <rect x="18" y="42" width="80" height="16" rx="8" fill="#e2e8f0"/>
-    <rect x="18" y="70" width="120" height="14" rx="7" fill="#cbd5f5"/>
-    <rect x="18" y="97" width="144" height="12" rx="6" fill="#e2e8f0"/>
-    <rect x="18" y="124" width="90" height="12" rx="6" fill="#e2e8f0"/>
-    <path d="M140 10h-24c-6 0-10 4-10 9v12c0 5 4 9 10 9h24l14 12c3 2 7 0 7-4V14c0-4-4-8-9-8h-16z" fill="url(#accent)" stroke="#0f172a" stroke-width="4" stroke-linejoin="round"/>
-  </g>
+  <rect width="160" height="160" rx="32" fill="#f8fafc"/>
+  <circle cx="80" cy="80" r="55" fill="url(#grad)" opacity="0.9"/>
+  <path d="M40 94c12 18 24 26 40 26s28-8 40-26" fill="none" stroke="white" stroke-width="8" stroke-linecap="round" opacity="0.85"/>
+  <path d="M40 64c12-12 24-18 40-18s28 6 40 18" fill="none" stroke="white" stroke-width="7" stroke-linecap="round" opacity="0.6"/>
+  <circle cx="58" cy="70" r="6" fill="white"/>
+  <circle cx="102" cy="70" r="6" fill="white"/>
+  <rect x="55" y="112" width="50" height="14" rx="7" fill="url(#grad2)" opacity="0.95"/>
 </svg>

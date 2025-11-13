@@ -193,10 +193,9 @@ const renderClusterList = useCallback(
         {groups.map(({ id, label, url, clusters: grouped }) => (
           <div
             key={id}
-            className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900"
+            className="rounded-2xl border border-transparent bg-gradient-to-br from-slate-100 via-white to-slate-50 p-[1px] shadow-sm dark:from-slate-900 dark:via-slate-950 dark:to-slate-900"
           >
-            <span className="pointer-events-none absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-sky-400 via-indigo-400 to-violet-500" aria-hidden />
-            <div className="pl-3">
+            <div className="rounded-[1.1rem] bg-white/95 shadow-lg shadow-slate-200/40 ring-1 ring-slate-100/80 dark:bg-slate-900/70 dark:shadow-slate-950/50 dark:ring-slate-800/60">
             <header className="flex items-center justify-between gap-4 border-b border-slate-200/60 px-4 py-3 text-base text-slate-900 dark:border-slate-800/70 dark:text-slate-100">
               {(() => {
                 const resolvedUrl = url || grouped[0]?.sources?.find((s) => s.id === id)?.url;
@@ -233,12 +232,12 @@ const renderClusterList = useCallback(
                     <button
                       type="button"
                       onClick={() => handleOpenCluster(cluster.id)}
-                      className="group flex w-full items-start gap-3 overflow-hidden px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/60"
+                      className="flex w-full items-start gap-3 overflow-hidden px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/60"
                     >
                       <div className="flex min-w-0 flex-1 items-start gap-3 overflow-hidden">
                         <div className="min-w-0 flex-1 overflow-hidden">
                           <p className="text-xs text-slate-600 dark:text-slate-400">{formatDisplayDate(registeredIso)}</p>
-                          <p className="mt-1 truncate font-semibold text-slate-900 transition-colors group-hover:text-sky-600 dark:text-slate-100 dark:group-hover:text-sky-200">{displayTitle}</p>
+                          <p className="mt-1 truncate font-semibold text-slate-900 dark:text-slate-100">{displayTitle}</p>
                         </div>
                         <DetailStatusBadge
                           status={resolvedCluster.detailStatus}
