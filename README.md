@@ -119,7 +119,44 @@ detail が `pending` のまま動かない場合は DynamoDB の `detail_status`
 
 ---
 
-## 9. ライセンスと利用範囲
+## 9. ローカル開発メモ
+
+### Backend / Lambda
+
+```bash
+pytest backend/tests
+```
+
+- 依存は極力 `backend/lambdas/shared/*` にまとめ、ZIP に `shared` ディレクトリを必ず含める
+- テストでは moto/localstack を使わずモックで済ませ、CI なしでも再現できるようにしています
+
+### Frontend (Next.js 14 App Router)
+
+```bash
+cd frontend
+npm install
+npm run dev       # http://localhost:3000
+npm run lint
+npm run test -- tests/schemas.test.ts
+```
+
+- Amplify Hosting は `amplify.yml` の `npm ci` → `npm run build` でビルド
+- ISR 再検証エンドポイントは `app/api/revalidate/route.ts`。`REVALIDATE_SECRET` をセットするとヘッダー/クエリ/JSON のいずれかでトークンが必要になります
+
+---
+
+## 10. インフラ構成メモ
+
+- Terraform ルート: `infra/terraform/stacks/pipeline`
+  - `dev.tfvars` / `prod.tfvars` … それぞれの環境変数（Bedrock モデル ID、Cloudflare アカウント、RAW バケットサフィックスなど）
+  - `dist/*.zip` … 各 Lambda の配布物
+  - マネージドルール: `terraform workspace select <env>` → `plan` → `apply`
+- 共通モジュールや追加 IaC を導入する場合は `infra/terraform/modules/` に配置
+- Amplify / CloudFront の設定は Terraform 内で完結。追加の README はありません
+
+---
+
+## 11. ライセンスと利用範囲
 
 個人の学習・ポートフォリオ用途を想定しています。商用利用は想定しておらず、RSS 配信元や LLM プロバイダの利用規約に従ってください。  
 問題やバグを見つけたら Issue/PR 大歓迎です。
