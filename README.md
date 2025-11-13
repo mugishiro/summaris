@@ -1,38 +1,38 @@
-# AWS Todo News Summary (PoC)
+# News Summary Pipeline
 
-このリポジトリは海外ニュースを自動要約する個人プロジェクトの PoC/MVP 用コードとドキュメントを収集したものです。
+海外ニュースを自動収集し、日本語要約を配信する AWS サーバレス構成のリポジトリです。  
+技術仕様・運用・ポリシーは下記 3 ファイルに統合しました。
 
-## 概要
-- AWS (EventBridge, Lambda, Step Functions, DynamoDB, Bedrock, Amplify) を用いたサーバレス構成。
-- RSS から取得した記事のメタデータのみを保存し、LLM（Bedrock Claude）で要約と差分を生成。
-- 要約・翻訳は Cloudflare Workers AI を優先し、失敗時のみ Bedrock / Amazon Translate にフォールバックする構成へ移行中。
-- Web フロントエンドは Next.js (ISR) で構築予定。
+- `docs/README.md` … アーキテクチャ概要・データフロー・API・フロント挙動
+- `docs/OPERATIONS.md` … デプロイ／Terraform 手順、監視、Runbook
+- `docs/POLICY.md` … 命名規則、コーディング方針、RSS／LLM 利用ポリシー
 
-## 利用ポリシー
-- **非商用・ポートフォリオ目的**での利用のみを想定しています。
-- RSS 配信元の利用規約を尊重し、本文の保存・再配布を行いません。
-- 出典リンクとクレジット表示を徹底し、注意書きテンプレートを `docs/RSS_LICENSE_OVERVIEW.md` にまとめています。
+## ハイライト
+- **構成**: EventBridge Scheduler → Collector → SQS Raw Queue → Queue Worker（collector→preprocessor→summarizer→postprocess）→ DynamoDB / S3。配信は Next.js (ISR) + Amplify/CloudFront + API Gateway + Lambda。
+- **LLM**: Cloudflare Workers AI を優先し、失敗時は Bedrock Claude へフォールバック。Secrets Manager でプロンプトと API トークンを管理。
+- **要約オンデマンド**: `POST /clusters/{id}/summaries` で detail を再生成し、`detail_status` と TTL を DynamoDB で管理。フロントはステータスに応じて自動ポーリング／失敗表示を切り替える。
+- **用途**: 非商用・ポートフォリオ目的。RSS 利用規約を尊重し記事本文は保存せず、要約と参照リンクのみを提供。
 
-## ドキュメント
-- 仕様書: `docs/SPECIFICATION.md`
-- 開発計画・タスク: `docs/DEVELOPMENT_PLAN.md`
-- 要約プロンプト仕様: `docs/LLM_PROMPT_SPEC.md`
-- ポートフォリオ公開ガイド: `docs/PORTFOLIO_GUIDE.md`
-- RSS 利用規約まとめ: `docs/RSS_LICENSE_OVERVIEW.md`
-- コミットメッセージ規約: `docs/COMMIT_CONVENTION.md`
-- 環境タグ・命名規約: `docs/ENVIRONMENT_NAMING.md`
-- Terraform バックエンド手順: `docs/TERRAFORM_BACKEND_SETUP.md`
-- RSS ソース調査レポート: `docs/RSS_SOURCE_AUDIT.md`
-- 要約パイプライン PoC 設計: `docs/PIPELINE_POC.md`
-- 品質・コスト評価手順: `docs/QUALITY_COST_EVALUATION.md`
-- CloudWatch Logs Insights クエリ集: `docs/CLOUDWATCH_LOGS_INSIGHTS_QUERIES.md`
-- PoC 要約評価ログ: `docs/POC_FEEDBACK.md`
+## ディレクトリ構成（抜粋）
 
-## Cloudflare Workers AI 設定概要
-- 要約 Lambda は `SUMMARIZER_PROVIDER=cloudflare`（既定値）で Cloudflare Workers AI を呼び出し、`CLOUDFLARE_ACCOUNT_ID` と Secrets Manager 上のトークン（`CLOUDFLARE_API_TOKEN_SECRET_NAME`）を設定すれば無料枠で運用できる。失敗時は自動的に Bedrock にフォールバック。
-- 見出し翻訳は Cloudflare Workers AI (`ENABLE_TITLE_TRANSLATION=true`) で `@cf/meta/m2m100-1.2b` を使用し、同じシークレットを参照して翻訳モデルを呼び出す。必要に応じて `CLOUDFLARE_TRANSLATE_MODEL_ID` や `CLOUDFLARE_TRANSLATE_TIMEOUT_SECONDS` を調整できる。
-- 要約本文が英語で返ってきた場合でも `ENABLE_SUMMARY_TRANSLATION=true` を設定しておくと Cloudflare Workers AI で日本語化を試行し、成功時は DynamoDB へ保存する要約を差し替える。
-- Cloudflare を未設定の場合は翻訳フォールバックが無効になり、そのままの要約が保存される点に注意する。
+| パス | 説明 |
+| --- | --- |
+| `backend/lambdas/*` | Lambda ハンドラー（collector / dispatcher / preprocessor / summarizer / postprocess / content_api / queue_worker） |
+| `build/` | Lambda バンドル用の展開済みディレクトリ（zip 化前） |
+| `dist/` | Lambda の zip パッケージ。`infra/terraform/dist/*.zip` にコピーして Terraform から参照 |
+| `infra/terraform` | パイプライン一式の IaC。ワークスペース: `dev`, `prod` |
+| `frontend/` | Next.js (App Router)。Amplify から `amplify.yml` でビルド |
 
-## ライセンス
-このプロジェクトは個人学習・ポートフォリオ用途のためライセンスを設定していません。商用利用を希望する場合は必ず各 RSS 配信元と AWS の利用規約をご確認ください。
+## デプロイ概要
+
+1. コード変更 → `pytest backend/tests` / `npm run test -- tests/schemas.test.ts`
+2. `build/<lambda>` にハンドラーを同期し `zip` → `dist/` → `infra/terraform/dist/`
+3. `terraform -chdir=infra/terraform/stacks/pipeline plan/apply -var-file=<env>.tfvars`
+4. `curl https://<stage>.execute-api.../clusters` で動作確認、CloudWatch Logs をチェック
+
+詳細は `docs/OPERATIONS.md` を参照してください。
+
+## コントリビューション / ライセンス
+
+- コーディング規約やコミット方針は `docs/POLICY.md` を参照。
+- このプロジェクトは個人学習用であり、商用利用は想定していません。RSS 配信元・LLM ベンダーの利用規約を遵守してください。
