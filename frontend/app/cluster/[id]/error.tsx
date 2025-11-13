@@ -17,9 +17,9 @@ export default function ClusterDetailError({ error, reset }: RouteErrorProps) {
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 text-center">
       <div className="space-y-3">
         <p className="text-xs uppercase tracking-widest text-slate-500">Cluster Detail</p>
-        <h2 className="text-2xl font-semibold text-slate-100">クラスタの読み込みに失敗しました</h2>
+        <h2 className="text-2xl font-semibold text-slate-100">記事の読み込みに失敗しました</h2>
         <p className="max-w-lg text-sm text-slate-400">
-          ネットワークや API の応答に問題が発生しました。再試行するか、トップページに戻って別のクラスタを選択してください。
+          ネットワークや API の応答に問題が発生しました。再試行するか、トップページに戻って別の記事を選択してください。
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-3">

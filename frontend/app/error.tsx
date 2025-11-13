@@ -29,7 +29,7 @@ export default function GlobalError({ error, reset }: ErrorComponentProps) {
       <div className="space-y-3">
         <p className="text-xs uppercase tracking-widest text-slate-500">Error</p>
         <h2 className="text-2xl font-semibold text-slate-100">
-          {isDataError ? 'クラスタデータの取得に失敗しました' : 'アプリケーションでエラーが発生しました'}
+          {isDataError ? '記事データの取得に失敗しました' : 'アプリケーションでエラーが発生しました'}
         </h2>
         <p className="max-w-lg text-sm text-slate-400">
           {isDataError

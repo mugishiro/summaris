@@ -148,7 +148,7 @@ export async function fetchClustersViaApi(
   const raw = await response.json();
   const parsed = clusterListResponseSchema.safeParse(raw);
   if (!parsed.success) {
-    throw new ClusterDataError('クラスタ一覧レスポンスの検証に失敗しました。', [
+    throw new ClusterDataError('記事一覧レスポンスの検証に失敗しました。', [
       {
         source: 'api',
         message: parsed.error.message,
@@ -222,7 +222,7 @@ export async function fetchClusterDetailViaApi(
 
   const parsed = clusterDetailResponseSchema.safeParse(raw);
   if (!parsed.success) {
-    throw new ClusterDataError('クラスタ詳細レスポンスの検証に失敗しました。', [
+    throw new ClusterDataError('記事詳細レスポンスの検証に失敗しました。', [
       {
         source: 'api',
         message: parsed.error.message,

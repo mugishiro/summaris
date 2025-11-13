@@ -100,7 +100,7 @@ export async function fetchClusterSummaries(): Promise<ClusterSummary[]> {
   }
 
   if (attemptedSources.length > 0) {
-    throw new ClusterDataError('クラスタデータの取得に失敗しました。', failures);
+    throw new ClusterDataError('記事データの取得に失敗しました。', failures);
   }
 
   return fetchMockClusters();
@@ -115,10 +115,10 @@ export async function fetchClusterSummariesStrict(): Promise<ClusterSummary[]> {
   }
 
   if (attemptedSources.length === 0) {
-    throw new ClusterDataError('クラスタデータソースが構成されていません。', []);
+    throw new ClusterDataError('記事データソースが構成されていません。', []);
   }
 
-  throw new ClusterDataError('クラスタデータの取得に失敗しました。', failures);
+  throw new ClusterDataError('記事データの取得に失敗しました。', failures);
 }
 
 export async function fetchClusterById(id: string): Promise<ClusterSummary | null> {
@@ -162,7 +162,7 @@ export async function fetchClusterById(id: string): Promise<ClusterSummary | nul
   const match = clusters.find((cluster) => cluster.id === id) ?? null;
 
   if (!match && failures.length > 0) {
-    throw new ClusterDataError('クラスタデータの取得に失敗しました。', failures);
+    throw new ClusterDataError('記事データの取得に失敗しました。', failures);
   }
 
   return match;
@@ -209,7 +209,7 @@ export async function fetchClusterByIdFresh(id: string): Promise<ClusterSummary 
   const match = clusters.find((cluster) => cluster.id === id) ?? null;
 
   if (!match && failures.length > 0) {
-    throw new ClusterDataError('クラスタデータの取得に失敗しました。', failures);
+    throw new ClusterDataError('記事データの取得に失敗しました。', failures);
   }
 
   return match;

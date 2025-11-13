@@ -141,8 +141,9 @@ export function ClusterDirectory({ clusters }: Props) {
 
 const renderClusterList = useCallback(
     (clusterList: ClusterSummary[], emptyMessage: string) => (
-      <section className="rounded-xl border border-slate-200 bg-white/80 dark:border-slate-800 dark:bg-slate-900/40">
-        <div className="border-b border-slate-200 px-4 py-3 text-xs text-slate-600 dark:border-slate-800 dark:text-slate-400">
+      <section className="rounded-2xl border border-transparent bg-gradient-to-br from-slate-100 via-white to-slate-50 p-[1px] shadow-sm dark:from-slate-900 dark:via-slate-950 dark:to-slate-900">
+        <div className="rounded-[1.1rem] bg-white/95 shadow-lg shadow-slate-200/40 ring-1 ring-slate-100/80 dark:bg-slate-900/70 dark:shadow-slate-950/50 dark:ring-slate-800/60">
+        <div className="border-b border-slate-200/70 px-4 py-3 text-xs text-slate-600 dark:border-slate-800/70 dark:text-slate-400">
           {clusterList.length} 件
         </div>
         <ul className="max-h-[60vh] overflow-y-auto divide-y divide-slate-200 dark:divide-slate-800">
@@ -182,6 +183,7 @@ const renderClusterList = useCallback(
             );
           })}
         </ul>
+        </div>
       </section>
     ),
     [clusterDetails, handleOpenCluster]
@@ -333,13 +335,13 @@ const renderClusterList = useCallback(
       </section>
 
       {viewMode === 'today' &&
-        renderSourceGroups(todayClustersBySource, '本日取得されたクラスタは見つかりませんでした。')}
+        renderSourceGroups(todayClustersBySource, '本日取得された記事は見つかりませんでした。')}
 
       {viewMode === 'yesterday' &&
-        renderSourceGroups(yesterdayClustersBySource, '昨日取得されたクラスタは見つかりませんでした。')}
+        renderSourceGroups(yesterdayClustersBySource, '昨日取得された記事は見つかりませんでした。')}
 
       {viewMode === 'latest' &&
-        renderClusterList(latestClusters, '取得済みのクラスタがまだありません。')}
+        renderClusterList(latestClusters, '取得済みの記事がまだありません。')}
 
       {activeCluster && (
         <div
