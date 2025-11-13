@@ -12,6 +12,55 @@ import type { ClusterSummary } from '../lib/types';
 const DETAIL_POLL_INTERVAL_MS = 1500;
 const DETAIL_POLL_TIMEOUT_MS = 60_000;
 const DETAIL_POLL_MAX_ATTEMPTS = 40;
+const LOCAL_FAILURE_TTL_MS = 10 * 60 * 1000;
+
+type LocalFailureRecord = {
+  reason: string;
+  timestamp: number;
+};
+
+function getLocalFailure(clusterId: string): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    const raw = window.localStorage.getItem(`detail_failure:${clusterId}`);
+    if (!raw) {
+      return null;
+    }
+    const record = JSON.parse(raw) as LocalFailureRecord;
+    if (!record || typeof record.timestamp !== 'number' || typeof record.reason !== 'string') {
+      window.localStorage.removeItem(`detail_failure:${clusterId}`);
+      return null;
+    }
+    if (Date.now() - record.timestamp > LOCAL_FAILURE_TTL_MS) {
+      window.localStorage.removeItem(`detail_failure:${clusterId}`);
+      return null;
+    }
+    return record.reason;
+  } catch (error) {
+    console.warn('Failed to read local failure cache', error);
+    return null;
+  }
+}
+
+function rememberLocalFailure(clusterId: string, reason: string): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  const payload: LocalFailureRecord = {
+    reason,
+    timestamp: Date.now(),
+  };
+  window.localStorage.setItem(`detail_failure:${clusterId}`, JSON.stringify(payload));
+}
+
+function clearLocalFailure(clusterId: string): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  window.localStorage.removeItem(`detail_failure:${clusterId}`);
+}
 
 export type ClusterDetailState = {
   summary: string;
@@ -91,6 +140,12 @@ export function useClusterDetails(clusters: ClusterSummary[]) {
           const status = (normalised.detailStatus ?? 'partial') as ClusterSummary['detailStatus'];
           if (status === 'ready' || status === 'stale' || status === 'failed') {
             stopPolling(clusterId);
+            if (status === 'ready' || status === 'stale') {
+              clearLocalFailure(clusterId);
+            } else if (status === 'failed') {
+              const reason = normalised.detailFailureReason ?? 'failed';
+              rememberLocalFailure(clusterId, reason);
+            }
             return true;
           }
         }
@@ -143,12 +198,14 @@ export function useClusterDetails(clusters: ClusterSummary[]) {
           stopPolling(clusterId);
           const base = clusterDetailsRef.current[clusterId];
           if (base) {
+            const failureReason = base.detailFailureReason ?? 'timeout';
+            rememberLocalFailure(clusterId, failureReason);
             setClusterDetails((prev) => ({
               ...prev,
               [clusterId]: normaliseClusterSummary({
                 ...base,
                 detailStatus: 'failed',
-                detailFailureReason: base.detailFailureReason ?? 'timeout',
+                detailFailureReason: failureReason,
               }),
             }));
           }
@@ -169,6 +226,19 @@ export function useClusterDetails(clusters: ClusterSummary[]) {
     normalisedClusters.forEach((cluster) => {
       const resolved = clusterDetailsRef.current[cluster.id] ?? cluster;
       const status = (resolved.detailStatus ?? 'partial') as ClusterSummary['detailStatus'];
+      const localFailureReason = getLocalFailure(cluster.id);
+      if (localFailureReason) {
+        stopPolling(cluster.id);
+        setClusterDetails((prev) => ({
+          ...prev,
+          [cluster.id]: normaliseClusterSummary({
+            ...resolved,
+            detailStatus: 'failed',
+            detailFailureReason: localFailureReason,
+          }),
+        }));
+        return;
+      }
       if (status === 'pending') {
         startPolling(cluster.id);
       }
@@ -218,6 +288,7 @@ export function useClusterDetails(clusters: ClusterSummary[]) {
           detailFailureReason: undefined,
         }),
       }));
+      clearLocalFailure(cluster.id);
 
       try {
         const ensureResponse = await fetch(`/api/cluster/${cluster.id}/detail`, {
@@ -236,12 +307,15 @@ export function useClusterDetails(clusters: ClusterSummary[]) {
       } catch (error) {
         console.error('Failed to initiate summary generation', error);
         stopPolling(cluster.id);
+        const failureReason = 'request_failed';
+        rememberLocalFailure(cluster.id, failureReason);
         setClusterDetails((prev) => ({
           ...prev,
           [cluster.id]: normaliseClusterSummary({
             ...baseCluster,
             detailStatus: 'failed',
             summaryLong: baseCluster.summaryLong,
+            detailFailureReason: failureReason,
           }),
         }));
       }
