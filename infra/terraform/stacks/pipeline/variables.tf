@@ -356,6 +356,12 @@ variable "frontend_stage" {
   default     = "PRODUCTION"
 }
 
+variable "frontend_enable_auto_build" {
+  description = "Whether Amplify should automatically build when the branch updates"
+  type        = bool
+  default     = true
+}
+
 variable "frontend_revalidate_secret" {
   description = "Shared secret for triggering Next.js revalidation endpoints"
   type        = string

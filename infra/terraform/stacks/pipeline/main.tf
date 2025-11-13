@@ -942,7 +942,7 @@ resource "aws_amplify_branch" "frontend" {
   branch_name = var.frontend_branch_name
   stage       = var.frontend_stage
 
-  enable_auto_build = true
+  enable_auto_build = var.frontend_enable_auto_build
   framework         = "Next.js - SSR"
 
   tags = merge(var.default_tags, {
