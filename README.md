@@ -116,6 +116,7 @@ detail が `pending` のまま動かない場合は DynamoDB の `detail_status`
 | `dist/` | 完成した zip（Terraform が参照） |
 | `infra/terraform/` | IaC。ワークスペース `dev` / `prod` |
 | `frontend/` | Next.js アプリ（`amplify.yml` でビルド） |
+| `scripts/` | RSS チェックや URL 正規化など、メンテ補助スクリプト |
 
 ---
 
