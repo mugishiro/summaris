@@ -706,7 +706,7 @@ module "pipeline_state_machine" {
   name     = "${local.project_prefix}-pipeline"
   role_arn = aws_iam_role.step_functions.arn
   definition = templatefile(
-    "${path.module}/../../stepfunctions/pipeline.asl.json",
+    "${path.module}/../../modules/stepfunctions/pipeline.asl.json",
     {
       CollectorLambdaArn  = local.collector_arn
       CheckerLambdaArn    = local.checker_arn
