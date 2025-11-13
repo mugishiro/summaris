@@ -6,9 +6,13 @@ import { ThemeToggleButton } from '../components/theme-toggle';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'News Snapshot',
-  description: '世界の要約ニュースを一覧できるダッシュボード',
-  metadataBase: new URL('https://example.com')
+  title: 'news summaris',
+  description: '世界のニュースをさっと読める要約ダッシュボード',
+  metadataBase: new URL('https://example.com'),
+  icons: {
+    icon: '/icon.svg',
+    shortcut: '/icon.svg'
+  }
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -20,11 +24,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <header className="flex flex-col gap-4 border-b border-slate-200 pb-6 dark:border-slate-800">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    News Snapshot
+                  <p className="text-xs tracking-wide text-slate-500 dark:text-slate-400">
+                    news summaris
                   </p>
                   <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
-                    ニュース要約ビュー
+                    みんなのニュースまとめ
                   </h1>
                 </div>
                 <ThemeToggleButton />

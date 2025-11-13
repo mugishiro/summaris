@@ -143,7 +143,7 @@ const renderClusterList = useCallback(
     (clusterList: ClusterSummary[], emptyMessage: string) => (
       <section className="rounded-xl border border-slate-200 bg-white/80 dark:border-slate-800 dark:bg-slate-900/40">
         <div className="border-b border-slate-200 px-4 py-3 text-xs text-slate-600 dark:border-slate-800 dark:text-slate-400">
-          該当件数: {clusterList.length} 件
+          {clusterList.length} 件
         </div>
         <ul className="max-h-[60vh] overflow-y-auto divide-y divide-slate-200 dark:divide-slate-800">
           {clusterList.length === 0 && (
@@ -192,28 +192,28 @@ const renderClusterList = useCallback(
       <section className="flex flex-col gap-4">
         {groups.map(({ id, label, url, clusters: grouped }) => (
           <div key={id} className="rounded-xl border border-slate-200 bg-white/80 dark:border-slate-800 dark:bg-slate-900/40">
-            <header className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3 text-base text-slate-900 dark:border-slate-800 dark:text-slate-100">
+            <header className="flex items-center justify-between gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-base text-slate-900 dark:border-slate-800 dark:bg-slate-900/30 dark:text-slate-100">
               {(() => {
                 const resolvedUrl = url || grouped[0]?.sources?.find((s) => s.id === id)?.url;
+                const labelClasses =
+                  'inline-flex items-center gap-2 rounded-full bg-slate-900/5 px-3 py-1 text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-900/10 dark:bg-slate-800/60 dark:text-slate-100 dark:hover:bg-slate-700';
                 if (resolvedUrl) {
                   return (
-                    <a
-                      href={resolvedUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="max-w-[70%] overflow-hidden truncate text-left font-semibold text-slate-900 underline decoration-sky-500 underline-offset-4 dark:text-slate-100"
-                    >
-                      {label}
+                    <a href={resolvedUrl} target="_blank" rel="noopener noreferrer" className={`${labelClasses} max-w-[70%] truncate`}>
+                      <span className="truncate">{label}</span>
+                      <span aria-hidden className="text-xs text-slate-500 dark:text-slate-300">
+                        ↗
+                      </span>
                     </a>
                   );
                 }
                 return (
-                  <span className="max-w-[70%] overflow-hidden truncate text-left font-semibold text-slate-900 dark:text-slate-100">
+                  <span className={`${labelClasses} max-w-[70%] truncate`}>
                     {label}
                   </span>
                 );
               })()}
-              <span className="text-xs text-slate-500 dark:text-slate-400">{grouped.length} 件</span>
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{grouped.length} 件</span>
             </header>
             <ul className="max-h-[50vh] overflow-y-auto divide-y divide-slate-200 dark:divide-slate-800">
               {grouped.map((cluster) => {
