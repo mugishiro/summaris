@@ -32,9 +32,6 @@ build/
 terraform.tfstate
 terraform.tfstate.*
 
-# Documentation (not needed in remote repo)
-docs/
-
 # AWS credentials or overrides (do not commit real values)
 *.tfvars
 *.tfvars.json
