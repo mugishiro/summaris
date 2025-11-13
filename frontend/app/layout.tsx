@@ -6,8 +6,8 @@ import { ThemeToggleButton } from '../components/theme-toggle';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '海外ニュースまとめ',
-  description: '主要海外ニュースサイトから最新記事を集め、ワンクリックで要約できるダッシュボード',
+  title: 'World News Digest',
+  description: '世界の主要ニュースサイトから最新記事を集め、ワンクリックで要約できるダッシュボード',
   icons: {
     icon: '/icon.svg',
     shortcut: '/icon.svg'
@@ -24,10 +24,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="space-y-2">
                   <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
-                    海外ニュースまとめ
+                    World News Digest
                   </h1>
                   <p className="max-w-3xl text-sm leading-relaxed text-slate-600 dark:text-slate-400 sm:whitespace-nowrap">
-                    主要海外ニュースサイトから最新記事を集めています。気になる記事は「要約を生成」ボタンで日本語の要約をリクエストできます。
+                    世界の主要ニュースサイトから最新記事を集めています。気になる記事は「要約を生成」ボタンで日本語の要約をリクエストできます。
                   </p>
                 </div>
                 <div className="sm:self-start">
