@@ -221,7 +221,7 @@ const renderClusterList = useCallback(
               })()}
               <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{grouped.length} 件</span>
             </header>
-            <ul className="max-h-[50vh] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/80">
+            <ul className="max-h-[60vh] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/80">
               {grouped.map((cluster) => {
                 const resolvedCluster = clusterDetails[cluster.id] ?? cluster;
                 const displayTitle = deriveDisplayTitle(resolvedCluster);
