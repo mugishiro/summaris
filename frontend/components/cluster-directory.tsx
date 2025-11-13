@@ -191,9 +191,12 @@ const renderClusterList = useCallback(
     (groups: SourceGroup[], emptyMessage: string) => (
       <section className="flex flex-col gap-4">
         {groups.map(({ id, label, url, clusters: grouped }) => (
-          <div key={id} className="rounded-2xl border border-transparent bg-gradient-to-br from-slate-100 via-white to-slate-50 p-[1px] dark:from-slate-900 dark:via-slate-950 dark:to-slate-900">
-            <div className="rounded-[1.1rem] bg-white/90 shadow-sm dark:bg-slate-900/60">
-            <header className="flex items-center justify-between gap-4 border-b border-slate-200/70 px-4 py-3 text-base text-slate-900 dark:border-slate-800/70 dark:text-slate-100">
+          <div
+            key={id}
+            className="rounded-2xl border border-transparent bg-gradient-to-br from-slate-100 via-white to-slate-50 p-[1px] shadow-sm dark:from-slate-900 dark:via-slate-950 dark:to-slate-900"
+          >
+            <div className="rounded-[1.1rem] bg-white/95 shadow-lg shadow-slate-200/40 ring-1 ring-slate-100/80 dark:bg-slate-900/70 dark:shadow-slate-950/50 dark:ring-slate-800/60">
+            <header className="flex items-center justify-between gap-4 border-b border-slate-200/60 px-4 py-3 text-base text-slate-900 dark:border-slate-800/70 dark:text-slate-100">
               {(() => {
                 const resolvedUrl = url || grouped[0]?.sources?.find((s) => s.id === id)?.url;
                 const labelClasses =

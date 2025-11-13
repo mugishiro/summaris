@@ -7,8 +7,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'news summaris',
-  description: '世界のニュースをさっと読める要約ダッシュボード',
-  metadataBase: new URL('https://example.com'),
+  description: '主要海外ニュースサイトから最新記事を集め、ワンクリックで要約できるダッシュボード',
   icons: {
     icon: '/icon.svg',
     shortcut: '/icon.svg'
@@ -28,7 +27,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                     海外ニュースまとめ
                   </h1>
                   <p className="max-w-xl text-sm text-slate-600 dark:text-slate-400">
-                    主要海外ニュースサイトから最新トピックを集めています。気になる記事は「要約を生成」ボタンで日本語要約をリクエストできます。
+                    主要海外ニュースサイトから最新記事を集めています。気になる記事は「要約を生成」ボタンで日本語の要約をリクエストできます。
                   </p>
                 </div>
                 <ThemeToggleButton />
