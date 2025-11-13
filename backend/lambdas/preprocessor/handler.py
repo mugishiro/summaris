@@ -37,7 +37,10 @@ from typing import Any, Dict, List
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
-from backend.lambdas.shared.url import normalize_url
+try:
+    from backend.lambdas.shared.url import normalize_url
+except ModuleNotFoundError:
+    from shared.url import normalize_url
 
 
 LOGGER = logging.getLogger(__name__)

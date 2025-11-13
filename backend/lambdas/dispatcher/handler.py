@@ -19,7 +19,10 @@ from urllib.parse import urlparse
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
-from backend.lambdas.shared.url import ensure_source_link, normalize_url
+try:
+    from backend.lambdas.shared.url import ensure_source_link, normalize_url
+except ModuleNotFoundError:
+    from shared.url import ensure_source_link, normalize_url
 
 
 LOGGER = logging.getLogger(__name__)

@@ -19,11 +19,18 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
-from backend.lambdas.shared.cloudflare import (
-    CloudflareIntegrationError,
-    call_cloudflare_ai,
-    resolve_api_token,
-)
+try:
+    from backend.lambdas.shared.cloudflare import (
+        CloudflareIntegrationError,
+        call_cloudflare_ai,
+        resolve_api_token,
+    )
+except ModuleNotFoundError:  # Lambda package vendor
+    from shared.cloudflare import (
+        CloudflareIntegrationError,
+        call_cloudflare_ai,
+        resolve_api_token,
+    )
 
 
 LOGGER = logging.getLogger(__name__)

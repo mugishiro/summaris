@@ -18,12 +18,20 @@ from typing import Any, Dict
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
-from backend.lambdas.shared.cloudflare import (
-    CloudflareIntegrationError,
-    call_cloudflare_ai,
-    resolve_api_token,
-)
-from backend.lambdas.shared.url import ensure_source_link
+try:
+    from backend.lambdas.shared.cloudflare import (
+        CloudflareIntegrationError,
+        call_cloudflare_ai,
+        resolve_api_token,
+    )
+    from backend.lambdas.shared.url import ensure_source_link
+except ModuleNotFoundError:
+    from shared.cloudflare import (
+        CloudflareIntegrationError,
+        call_cloudflare_ai,
+        resolve_api_token,
+    )
+    from shared.url import ensure_source_link
 
 
 LOGGER = logging.getLogger(__name__)
