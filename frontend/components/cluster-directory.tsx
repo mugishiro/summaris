@@ -191,12 +191,13 @@ const renderClusterList = useCallback(
     (groups: SourceGroup[], emptyMessage: string) => (
       <section className="flex flex-col gap-4">
         {groups.map(({ id, label, url, clusters: grouped }) => (
-          <div key={id} className="rounded-xl border border-slate-200 bg-white/80 dark:border-slate-800 dark:bg-slate-900/40">
-            <header className="flex items-center justify-between gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-base text-slate-900 dark:border-slate-800 dark:bg-slate-900/30 dark:text-slate-100">
+          <div key={id} className="rounded-2xl border border-transparent bg-gradient-to-br from-slate-100 via-white to-slate-50 p-[1px] dark:from-slate-900 dark:via-slate-950 dark:to-slate-900">
+            <div className="rounded-[1.1rem] bg-white/90 shadow-sm dark:bg-slate-900/60">
+            <header className="flex items-center justify-between gap-4 border-b border-slate-200/70 px-4 py-3 text-base text-slate-900 dark:border-slate-800/70 dark:text-slate-100">
               {(() => {
                 const resolvedUrl = url || grouped[0]?.sources?.find((s) => s.id === id)?.url;
                 const labelClasses =
-                  'inline-flex items-center gap-2 rounded-full bg-slate-900/5 px-3 py-1 text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-900/10 dark:bg-slate-800/60 dark:text-slate-100 dark:hover:bg-slate-700';
+                  'inline-flex items-center gap-2 rounded-full bg-slate-900/5 px-3 py-1 text-sm font-semibold text-slate-900 transition hover:bg-slate-900/10 dark:bg-slate-800/60 dark:text-slate-100 dark:hover:bg-slate-700';
                 if (resolvedUrl) {
                   return (
                     <a href={resolvedUrl} target="_blank" rel="noopener noreferrer" className={`${labelClasses} max-w-[70%] truncate`}>
@@ -215,7 +216,7 @@ const renderClusterList = useCallback(
               })()}
               <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{grouped.length} 件</span>
             </header>
-            <ul className="max-h-[50vh] overflow-y-auto divide-y divide-slate-200 dark:divide-slate-800">
+            <ul className="max-h-[50vh] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/80">
               {grouped.map((cluster) => {
                 const resolvedCluster = clusterDetails[cluster.id] ?? cluster;
                 const displayTitle = deriveDisplayTitle(resolvedCluster);
@@ -245,6 +246,7 @@ const renderClusterList = useCallback(
                 );
               })}
             </ul>
+            </div>
           </div>
         ))}
         {groups.length === 0 && (
