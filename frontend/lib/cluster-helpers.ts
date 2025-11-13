@@ -270,7 +270,11 @@ function normaliseDetailStatus(value?: string | null): ClusterSummary['detailSta
 
 export function normaliseClusterSummary(cluster: ClusterSummary): ClusterSummary {
   const rawStatus = typeof cluster.detailStatus === 'string' ? cluster.detailStatus.trim().toLowerCase() : undefined;
-  const detailStatus = normaliseDetailStatus(rawStatus);
+  const detailStatusInitial = normaliseDetailStatus(rawStatus);
+  const hasFailureReason = typeof cluster.detailFailureReason === 'string' && cluster.detailFailureReason.trim().length > 0;
+  const detailStatus = hasFailureReason && detailStatusInitial !== 'ready' && detailStatusInitial !== 'stale'
+    ? 'failed'
+    : detailStatusInitial;
   const isReadyStatus = detailStatus === 'ready' || detailStatus === 'stale';
   const payload = extractSummaryPayload(cluster.summaryLong);
   const legacySummary = (cluster as { summary?: string }).summary;
