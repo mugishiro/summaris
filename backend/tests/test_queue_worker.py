@@ -17,11 +17,15 @@ from backend.lambdas.queue_worker import handler as queue_worker  # noqa: E402  
 class StubLambdaClient:
     def __init__(self) -> None:
         self.invocations: List[Dict[str, Any]] = []
+        self.fail_after: int | None = None
 
     def invoke(self, *, FunctionName: str, InvocationType: str, Payload: bytes) -> Dict[str, Any]:  # noqa: N803
         assert InvocationType == "RequestResponse"
         payload = json.loads(Payload.decode("utf-8"))
         self.invocations.append({"FunctionName": FunctionName, "payload": payload})
+
+        if self.fail_after is not None and len(self.invocations) >= self.fail_after:
+            raise RuntimeError("simulated failure")
 
         updated = dict(payload)
         steps = list(updated.get("steps", []))
@@ -71,3 +75,46 @@ def test_handle_sqs_records_processes_each_message(stub_lambda: StubLambdaClient
     expected_arns = [arn for _, arn in queue_worker.STEP_DEFINITIONS]
     # Each record should trigger the full pipeline.
     assert len(stub_lambda.invocations) == len(expected_arns) * 2
+
+
+def test_detail_failure_marks_dynamo_and_publishes_alert(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(queue_worker, "SUMMARY_TABLE_NAME", "summary-table", raising=False)
+    update_calls: List[Dict[str, Any]] = []
+
+    class StubTable:
+        def update_item(self, **kwargs: Any) -> None:  # noqa: ANN401
+            update_calls.append(kwargs)
+
+    class StubDynamo:
+        def Table(self, name: str) -> StubTable:  # noqa: N802
+            if name != "summary-table":
+                raise AssertionError("unexpected table name")
+            return StubTable()
+
+    monkeypatch.setattr(queue_worker, "dynamodb", StubDynamo(), raising=False)
+
+    published: Dict[str, Any] = {}
+
+    class StubSNS:
+        def publish(self, **kwargs: Any) -> None:  # noqa: ANN401
+            published.update(kwargs)
+
+    monkeypatch.setattr(queue_worker, "ALERT_TOPIC_ARN", "arn:aws:sns:::alerts", raising=False)
+    monkeypatch.setattr(queue_worker, "sns_client", StubSNS(), raising=False)
+
+    payload = {
+        "source": {"id": "bbc-world"},
+        "item": {"id": "cluster-1"},
+        "generate_detailed_summary": True,
+    }
+
+    stub_lambda = StubLambdaClient()
+    stub_lambda.fail_after = 1
+    monkeypatch.setattr(queue_worker, "lambda_client", stub_lambda)
+
+    with pytest.raises(RuntimeError):
+        queue_worker.handle(payload, context=None)
+
+    assert update_calls, "DynamoDB update_item should be called"
+    assert published["TopicArn"] == "arn:aws:sns:::alerts"
+    assert "cluster-1" in published["Message"]

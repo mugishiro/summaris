@@ -396,7 +396,13 @@ const renderClusterList = useCallback(
                     )}
                     {activeClusterDetailState.isError && (
                       <p className="text-sm text-rose-300">
-                        要約の生成に失敗しました。時間をおいて再試行してください。
+                        要約の生成に失敗しました。
+                        {activeClusterDetailState.failureReason && (
+                          <span className="ml-1 text-xs">
+                            原因: {activeClusterDetailState.failureReason}
+                          </span>
+                        )}
+                        <span className="ml-1">時間をおいて再試行してください。</span>
                       </p>
                     )}
                     {activeClusterDetailState.hasSummary && (

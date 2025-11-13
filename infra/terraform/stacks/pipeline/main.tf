@@ -361,6 +361,15 @@ data "aws_iam_policy_document" "lambda_inline" {
       local.queue_worker_arn
     ]
   }
+
+  statement {
+    sid    = "AlertTopicPublish"
+    effect = "Allow"
+    actions = [
+      "sns:Publish"
+    ]
+    resources = [aws_sns_topic.alerts.arn]
+  }
 }
 
 module "lambda_collector" {
@@ -511,6 +520,8 @@ module "lambda_queue_worker" {
     PREPROCESSOR_LAMBDA_ARN   = local.preprocessor_arn
     SUMMARIZER_LAMBDA_ARN     = local.summarizer_arn
     STORE_LAMBDA_ARN          = local.store_arn
+    SUMMARY_TABLE_NAME        = module.summary_table.name
+    ALERT_TOPIC_ARN           = aws_sns_topic.alerts.arn
   }
 
   tags = merge(var.default_tags, { Service = "queue-worker" })
@@ -533,6 +544,7 @@ module "lambda_content_api" {
     WORKER_LAMBDA_ARN              = local.queue_worker_arn
     DETAIL_TTL_SECONDS             = tostring(var.detail_ttl_seconds)
     DETAIL_PENDING_TIMEOUT_SECONDS = tostring(var.detail_pending_timeout_seconds)
+    ALERT_TOPIC_ARN                = aws_sns_topic.alerts.arn
   }
 
   tags = merge(var.default_tags, { Service = "content-api" })

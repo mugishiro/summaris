@@ -23,7 +23,10 @@ import boto3
 from boto3.dynamodb.conditions import Attr
 from botocore.exceptions import BotoCoreError, ClientError
 
-from backend.lambdas.shared.url import ensure_source_link
+try:
+    from backend.lambdas.shared.url import ensure_source_link
+except ModuleNotFoundError:
+    from shared.url import ensure_source_link
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
@@ -44,10 +47,12 @@ SUMMARY_TABLE_NAME = os.getenv("SUMMARY_TABLE_NAME", "")
 DEFAULT_LIMIT = _safe_int_env("API_CLUSTER_LIMIT", 0)  # 0 or negative => unlimited
 DETAIL_TTL_SECONDS = _safe_int_env("DETAIL_TTL_SECONDS", 43200)
 DETAIL_PENDING_TIMEOUT_SECONDS = _safe_int_env("DETAIL_PENDING_TIMEOUT_SECONDS", 900)
+ALERT_TOPIC_ARN = (os.getenv("ALERT_TOPIC_ARN") or "").strip()
 
 DYNAMODB = boto3.resource("dynamodb")
 WORKER_LAMBDA_ENV_KEY = "WORKER_LAMBDA_ARN"
 LAMBDA_CLIENT: Optional[Any] = None
+SNS_CLIENT = boto3.client("sns") if ALERT_TOPIC_ARN else None
 
 SOURCE_CATALOG: Dict[str, Dict[str, Any]] = {
     "nhk-news": {
@@ -115,6 +120,19 @@ def _table():
     if not SUMMARY_TABLE_NAME:
         raise RuntimeError("SUMMARY_TABLE_NAME environment variable must be set")
     return DYNAMODB.Table(SUMMARY_TABLE_NAME)
+
+
+def _publish_alert(message: str, *, subject: str = "Detail generation failure") -> None:
+    if not ALERT_TOPIC_ARN or SNS_CLIENT is None:
+        return
+    try:
+        SNS_CLIENT.publish(
+            TopicArn=ALERT_TOPIC_ARN,
+            Subject=subject[:100],
+            Message=message,
+        )
+    except (ClientError, BotoCoreError) as exc:
+        LOGGER.warning("Failed to publish alert: %s", exc)
 
 
 def _normalise_id(value: Optional[str], prefix: str) -> str:
@@ -497,7 +515,7 @@ def _is_detail_expired(raw_item: Dict[str, Any]) -> bool:
     return expires_at <= time.time()
 
 
-def _mark_detail_failure(raw_item: Dict[str, Any], reason: str) -> None:
+def _mark_detail_failure(raw_item: Dict[str, Any], reason: str, *, cluster_id: Optional[str] = None) -> None:
     table = _table()
     failed_at = int(time.time())
     table.update_item(
@@ -518,6 +536,8 @@ def _mark_detail_failure(raw_item: Dict[str, Any], reason: str) -> None:
     raw_item["detail_status"] = "failed"
     raw_item["detail_failed_at"] = failed_at
     raw_item["detail_failure_reason"] = reason
+    friendly_id = cluster_id or _normalise_id(raw_item.get("sk"), "ITEM#") or raw_item.get("sk")
+    _publish_alert(f"Detail generation failed for cluster={friendly_id}: {reason}")
 
 
 def _response(status_code: int, body: Any) -> Dict[str, Any]:
@@ -556,6 +576,17 @@ def _handle_detail_request(cluster_id: str) -> Dict[str, Any]:
             },
         )
 
+    if detail_status == "failed":
+        refreshed = _marshall_item(record) or cluster
+        return _response(
+            200,
+            {
+                "status": "failed",
+                "detailStatus": "failed",
+                "cluster": refreshed,
+            },
+        )
+
     if detail_status == "pending":
         requested_at = _maybe_epoch_seconds(record.get("detail_requested_at"))
         if (
@@ -565,11 +596,19 @@ def _handle_detail_request(cluster_id: str) -> Dict[str, Any]:
         ):
             LOGGER.warning("Detail generation timed out for cluster %s; marking as failed", cluster_id)
             try:
-                _mark_detail_failure(record, "timeout")
+                _mark_detail_failure(record, "timeout", cluster_id=cluster_id)
             except Exception as exc:  # pylint: disable=broad-except
                 LOGGER.exception("Failed to mark detail failure for cluster %s: %s", cluster_id, exc)
                 return _response(500, {"message": "Failed to update detail status"})
-            detail_status = "failed"
+            refreshed = _marshall_item(record) or cluster
+            return _response(
+                200,
+                {
+                    "status": "failed",
+                    "detailStatus": "failed",
+                    "cluster": refreshed,
+                },
+            )
         else:
             return _response(
                 202,
@@ -595,7 +634,19 @@ def _handle_detail_request(cluster_id: str) -> Dict[str, Any]:
         )
     except Exception as exc:  # pylint: disable=broad-except
         LOGGER.exception("Failed to start detail generation for cluster %s: %s", cluster_id, exc)
-        return _response(500, {"message": "Failed to start detail generation"})
+        try:
+            _mark_detail_failure(record, "worker_invoke_failed", cluster_id=cluster_id)
+        except Exception as mark_exc:  # pylint: disable=broad-except
+            LOGGER.warning("Unable to persist failure state for cluster %s: %s", cluster_id, mark_exc)
+        refreshed = _marshall_item(record) or cluster
+        return _response(
+            500,
+            {
+                "status": "failed",
+                "detailStatus": "failed",
+                "cluster": refreshed,
+            },
+        )
 
     if not started:
         return _response(

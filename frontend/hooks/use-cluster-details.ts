@@ -10,6 +10,8 @@ import {
 import type { ClusterSummary } from '../lib/types';
 
 const DETAIL_POLL_INTERVAL_MS = 1500;
+const DETAIL_POLL_TIMEOUT_MS = 60_000;
+const DETAIL_POLL_MAX_ATTEMPTS = 40;
 
 export type ClusterDetailState = {
   summary: string;
@@ -18,6 +20,7 @@ export type ClusterDetailState = {
   isReady: boolean;
   isError: boolean;
   isGenerating: boolean;
+  failureReason?: string;
 };
 
 export function useClusterDetails(clusters: ClusterSummary[]) {
@@ -29,6 +32,7 @@ export function useClusterDetails(clusters: ClusterSummary[]) {
   const [clusterDetails, setClusterDetails] = useState<Record<string, ClusterSummary>>({});
   const clusterDetailsRef = useRef(clusterDetails);
   const pollersRef = useRef<Map<string, number>>(new Map());
+  const pollMetadataRef = useRef<Map<string, { attempts: number; startedAt: number }>>(new Map());
 
   useEffect(() => {
     clusterDetailsRef.current = clusterDetails;
@@ -40,6 +44,7 @@ export function useClusterDetails(clusters: ClusterSummary[]) {
       window.clearTimeout(timeoutId);
       pollersRef.current.delete(clusterId);
     }
+    pollMetadataRef.current.delete(clusterId);
   }, []);
 
   useEffect(() => {
@@ -104,6 +109,8 @@ export function useClusterDetails(clusters: ClusterSummary[]) {
         return;
       }
 
+      pollMetadataRef.current.set(clusterId, { attempts: 0, startedAt: Date.now() });
+
       const poll = async () => {
         try {
           const response = await fetch(`/api/cluster/${clusterId}/detail`, {
@@ -124,7 +131,27 @@ export function useClusterDetails(clusters: ClusterSummary[]) {
           console.error('Failed to poll cluster detail', error);
         }
 
-        if (!pollersRef.current.has(clusterId)) {
+        const meta = pollMetadataRef.current.get(clusterId);
+        if (!pollersRef.current.has(clusterId) || !meta) {
+          return;
+        }
+
+        meta.attempts += 1;
+        const exceededAttempts = meta.attempts >= DETAIL_POLL_MAX_ATTEMPTS;
+        const exceededTimeout = Date.now() - meta.startedAt >= DETAIL_POLL_TIMEOUT_MS;
+        if (exceededAttempts || exceededTimeout) {
+          stopPolling(clusterId);
+          const base = clusterDetailsRef.current[clusterId];
+          if (base) {
+            setClusterDetails((prev) => ({
+              ...prev,
+              [clusterId]: normaliseClusterSummary({
+                ...base,
+                detailStatus: 'failed',
+                detailFailureReason: base.detailFailureReason ?? 'timeout',
+              }),
+            }));
+          }
           return;
         }
 
@@ -188,6 +215,7 @@ export function useClusterDetails(clusters: ClusterSummary[]) {
           ...baseCluster,
           detailStatus: 'pending',
           summaryLong: '',
+          detailFailureReason: undefined,
         }),
       }));
 
@@ -230,6 +258,7 @@ export function useClusterDetails(clusters: ClusterSummary[]) {
       const hasSummary = summary.length > 0 && isReadyStatus;
       const isError = detailStatus === 'failed';
       const isGenerating = pollersRef.current.has(cluster.id) || detailStatus === 'pending';
+      const failureReason = resolved.detailFailureReason?.trim() || undefined;
 
       return {
         summary,
@@ -238,6 +267,7 @@ export function useClusterDetails(clusters: ClusterSummary[]) {
         isReady: hasSummary,
         isError,
         isGenerating,
+        failureReason,
       };
     },
     [clusterDetails]

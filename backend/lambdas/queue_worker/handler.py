@@ -11,7 +11,8 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import Any, Dict, Iterable, List, Tuple
+import time
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
@@ -35,7 +36,12 @@ STEP_DEFINITIONS: Tuple[Tuple[str, str], ...] = (
     ("postprocess", _env("STORE_LAMBDA_ARN")),
 )
 
+SUMMARY_TABLE_NAME = (os.getenv("SUMMARY_TABLE_NAME") or "").strip()
+ALERT_TOPIC_ARN = (os.getenv("ALERT_TOPIC_ARN") or "").strip()
+
 lambda_client = boto3.client("lambda")
+dynamodb = boto3.resource("dynamodb") if SUMMARY_TABLE_NAME else None
+sns_client = boto3.client("sns") if ALERT_TOPIC_ARN else None
 
 
 def _invoke_lambda(function_arn: str, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -82,11 +88,96 @@ def _invoke_lambda(function_arn: str, payload: Dict[str, Any]) -> Dict[str, Any]
     return result
 
 
+def _is_detail_request(payload: Dict[str, Any]) -> bool:
+    request_context = payload.get("request_context") or {}
+    reason = (request_context.get("reason") or "").lower()
+    if payload.get("generate_detailed_summary"):
+        return True
+    return reason in {"detail", "on_demand_summary", "manual_detail"}
+
+
+def _detail_item_key(payload: Dict[str, Any]) -> Optional[Dict[str, str]]:
+    source = (payload.get("source") or {}).get("id")
+    item = (payload.get("item") or {}).get("id")
+    if not source or not item:
+        return None
+    return {"pk": f"SOURCE#{source}", "sk": f"ITEM#{item}"}
+
+
+def _mark_detail_failure(payload: Dict[str, Any], reason: str) -> bool:
+    if not SUMMARY_TABLE_NAME or not dynamodb:
+        LOGGER.debug("Detail failure occurred but SUMMARY_TABLE_NAME is not configured")
+        return False
+    key = _detail_item_key(payload)
+    if not key:
+        LOGGER.warning("Unable to resolve DynamoDB key for detail failure notification")
+        return False
+
+    table = dynamodb.Table(SUMMARY_TABLE_NAME)
+    now = int(time.time())
+    try:
+        table.update_item(
+            Key=key,
+            UpdateExpression=(
+                "SET #detail_status = :failed, detail_failed_at = :failed_at, detail_failure_reason = :reason"
+            ),
+            ExpressionAttributeNames={"#detail_status": "detail_status"},
+            ExpressionAttributeValues={
+                ":failed": "failed",
+                ":failed_at": now,
+                ":reason": reason[:500],
+            },
+        )
+        return True
+    except (ClientError, BotoCoreError) as exc:
+        LOGGER.warning("Failed to update detail failure status: %s", exc)
+        return False
+
+
+def _publish_alert(message: str, *, subject: str = "Detail generation failure") -> None:
+    if not ALERT_TOPIC_ARN or not sns_client:
+        return
+    try:
+        sns_client.publish(
+            TopicArn=ALERT_TOPIC_ARN,
+            Subject=subject[:100],
+            Message=message,
+        )
+    except (ClientError, BotoCoreError) as exc:
+        LOGGER.warning("Failed to publish failure alert: %s", exc)
+
+
+def _handle_pipeline_failure(
+    payload: Dict[str, Any],
+    step_name: str,
+    error: Exception,
+    *,
+    detail_request: bool,
+) -> None:
+    LOGGER.error("%s step failed for item=%s: %s", step_name, (payload.get("item") or {}).get("id"), error)
+    if not detail_request:
+        return
+    reason = f"{step_name} failed: {error}"
+    updated = _mark_detail_failure(payload, reason)
+    message = (
+        f"Detail generation failed at {step_name} for source={ (payload.get('source') or {}).get('id') } "
+        f"item={ (payload.get('item') or {}).get('id') }: {error}"
+    )
+    if not updated:
+        LOGGER.warning("Detail failure alert could not update DynamoDB record")
+    _publish_alert(message)
+
+
 def _run_pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
     current = payload
+    detail_request = _is_detail_request(payload)
     for step_name, function_arn in STEP_DEFINITIONS:
         LOGGER.info("Executing %s step for item=%s", step_name, (current.get("item") or {}).get("id"))
-        current = _invoke_lambda(function_arn, current)
+        try:
+            current = _invoke_lambda(function_arn, current)
+        except Exception as exc:  # pylint: disable=broad-except
+            _handle_pipeline_failure(payload, step_name, exc, detail_request=detail_request)
+            raise
     return current
 
 
